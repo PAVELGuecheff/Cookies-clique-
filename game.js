@@ -212,11 +212,27 @@
     render();
   }
 
+  // Premier clic : demande de confirmation. Deuxième clic dans les 4 s : la partie est effacée.
+  let resetTimer = null;
   function onReset() {
-    if (!confirm("Recommencer depuis le début ? Toute la partie sera effacée.")) return;
+    const button = $("reset");
+    if (!resetTimer) {
+      button.textContent = "Sûr ? Toucher encore pour tout effacer";
+      button.classList.add("confirm");
+      resetTimer = setTimeout(cancelReset, 4000);
+      return;
+    }
+    cancelReset();
     state = newState();
     save();
     render();
+    toast("🏝️ Nouvelle partie : retour sur l’îlot désert");
+  }
+  function cancelReset() {
+    clearTimeout(resetTimer);
+    resetTimer = null;
+    $("reset").textContent = "Recommencer la partie";
+    $("reset").classList.remove("confirm");
   }
 
   // ---------------------------------------------------------------------------
