@@ -210,6 +210,57 @@ button { font: inherit; color: inherit; }
 .upgrade { grid-template-columns: 36px 1fr; width: calc(50% - 4px); }
 .upgrade .item-emoji { font-size: 1.6rem; }
 
+/* Achat par lot (×1 / ×10 / Max) */
+.shop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.shop-head h2 { margin: 0; }
+.buy-mode { display: flex; border: 2px solid var(--sand-dark); border-radius: 999px; overflow: hidden; }
+.buy-mode button {
+  padding: 6px 12px;
+  border: none;
+  background: #fff;
+  font-weight: 700;
+  font-size: .85rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.buy-mode button + button { border-left: 2px solid var(--sand-dark); }
+.buy-mode button[aria-pressed="true"] { background: var(--sea); color: #fff; }
+
+.pop-bonus {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #e6f6f1;
+  color: var(--ok);
+  font-size: .85rem;
+  font-weight: 700;
+}
+
+/* Ligne bâtiment + bouton d’achat automatique */
+.row { display: flex; gap: 6px; }
+.row .item { flex: 1; min-width: 0; }
+.auto-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 58px;
+  flex-shrink: 0;
+  border: 2px solid var(--sand-dark);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.auto-toggle span { font-size: 1.3rem; filter: grayscale(1); opacity: .6; }
+.auto-toggle[aria-pressed="true"] { border-color: var(--ok); background: #e6f6f1; color: var(--ok); }
+.auto-toggle[aria-pressed="true"] span { filter: none; opacity: 1; animation: whirr 1s ease-in-out infinite; }
+@keyframes whirr { 50% { transform: rotate(-12deg) scale(1.1); } }
+
 .reset {
   display: block;
   margin: 20px auto 0;

@@ -43,7 +43,15 @@
         <h2>Améliorations</h2>
         <div class="upgrades" id="upgrades"></div>
       </div>
-      <h2>Construire</h2>
+      <div class="shop-head">
+        <h2>Construire</h2>
+        <div class="buy-mode" id="buy-mode" role="group" aria-label="Quantité à acheter">
+          <button type="button" data-qty="1" aria-pressed="true">×1</button>
+          <button type="button" data-qty="10" aria-pressed="false">×10</button>
+          <button type="button" data-qty="max" aria-pressed="false">Max</button>
+        </div>
+      </div>
+      <p class="pop-bonus" id="pop-bonus" hidden></p>
       <div class="buildings" id="buildings"></div>
       <button class="reset" id="reset" type="button">Recommencer la partie</button>
     </section>

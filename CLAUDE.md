@@ -8,7 +8,8 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
 - `index.html` : structure de la page, aucun CSS ni JS dedans.
 - `style.css` : apparence ; couleurs en variables dans `:root`.
 - `game.js` : toute la logique, dans une seule fonction `(function(){ "use strict"; … })();`.
-  Les données d’équilibrage sont en haut : `BUILDINGS`, `UPGRADES`, `STAGES`.
+  Les données d’équilibrage sont en haut : `BUILDINGS`, `UPGRADES` (+ `BUILDING_UPGRADES`), `STAGES`,
+  et les réglages des événements (`BOTTLE`, `BOAT`, `FRENZY`, `GOLD_CLICK`).
 
 ## Technique
 - HTML/CSS/JS sans framework ni npm. Dessins = emojis.

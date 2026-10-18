@@ -17,12 +17,40 @@
   ];
   const PRICE_GROWTH = 1.15; // +15 % à chaque achat
 
-  // unlock : total de pièces gagnées pour voir l’amélioration
+  // unlock : condition pour voir l’amélioration (earned = pièces gagnées au total, pop = habitants,
+  // building + owned = nombre d’exemplaires d’un bâtiment).
+  // effect : click (clic ×), clickFromProd (part de la production ajoutée au clic),
+  // building (production de ce bâtiment ×2), auto (achat automatique), popBonus (bonus par habitant).
   const UPGRADES = [
-    { id: "machette", emoji: "🪓", name: "Machette", info: "Clic ×2", cost: 100, unlock: 50 },
-    { id: "pirogue",  emoji: "🛶", name: "Pirogue",  info: "Clic ×2", cost: 1000, unlock: 500 },
-    { id: "boussole", emoji: "🧭", name: "Boussole", info: "+1 % de la prod. par clic", cost: 50000, unlock: 20000 },
+    { id: "machette",  emoji: "🪓", name: "Machette",  info: "Clic ×2", cost: 100, unlock: { earned: 50 }, effect: { click: 2 } },
+    { id: "pirogue",   emoji: "🛶", name: "Pirogue",   info: "Clic ×2", cost: 1000, unlock: { earned: 500 }, effect: { click: 2 } },
+    { id: "intendant", emoji: "🧑‍💼", name: "Intendant", info: "Débloque l’achat automatique 🤖", cost: 5000, unlock: { earned: 2000 }, effect: { auto: true } },
+    { id: "mairie",    emoji: "🏛️", name: "Mairie",    info: "+1 % de production par 10 habitants", cost: 25000, unlock: { pop: 100 }, effect: { popBonus: 0.001 } },
+    { id: "boussole",  emoji: "🧭", name: "Boussole",  info: "+1 % de la prod. par clic", cost: 50000, unlock: { earned: 20000 }, effect: { clickFromProd: 0.01 } },
   ];
+
+  // Deux améliorations par bâtiment : sa production ×2 à 10 exemplaires, puis encore ×2 à 25.
+  const BUILDING_UPGRADES = {
+    hutte:   [["🌿", "Toits tressés"], ["🛏️", "Hamacs"]],
+    pecheur: [["🕸️", "Filets renforcés"], ["🚤", "Chalutier"]],
+    cocos:   [["🪸", "Engrais de corail"], ["🥥", "Presse à coco"]],
+    port:    [["🏗️", "Grue"], ["🗼", "Phare"]],
+    marche:  [["⛱️", "Étals couverts"], ["🎪", "Grande foire"]],
+    hotel:   [["🏊", "Piscine"], ["💆", "Spa"]],
+    aero:    [["🛫", "Piste longue"], ["🧳", "Vols charters"]],
+  };
+  const BUILDING_UPGRADE_STEPS = [{ owned: 10, costMult: 20 }, { owned: 25, costMult: 200 }];
+  BUILDINGS.forEach((b) => {
+    BUILDING_UPGRADES[b.id].forEach(([emoji, name], tier) => {
+      const step = BUILDING_UPGRADE_STEPS[tier];
+      UPGRADES.push({
+        id: `${b.id}-${tier + 1}`, emoji, name, info: `${b.emoji} production ×2`,
+        cost: b.cost * step.costMult, unlock: { building: b.id, owned: step.owned }, effect: { building: b.id },
+      });
+    });
+  });
+  UPGRADES.sort((a, b) => a.cost - b.cost);
+  const MAX_AUTO_BUYS_PER_SECOND = 20;
 
   const STAGES = [
     { pop: 0,      emoji: "🏝️", title: "Îlot désert" },
@@ -50,7 +78,11 @@
   // ---------------------------------------------------------------------------
 
   function newState() {
-    return { coins: 0, totalEarned: 0, owned: {}, upgrades: {}, stage: 0, savedAt: Date.now() };
+    return {
+      coins: 0, totalEarned: 0, owned: {}, upgrades: {}, stage: 0, savedAt: Date.now(),
+      auto: {},   // bâtiments en achat automatique
+      buyMode: 1, // achat par 1, 10 ou "max"
+    };
   }
   let state = newState();
 
@@ -64,9 +96,31 @@
   // ---------------------------------------------------------------------------
 
   const count = (b) => state.owned[b.id] || 0;
-  const price = (b) => Math.ceil(b.cost * Math.pow(PRICE_GROWTH, count(b)));
-  const perSecond = () => BUILDINGS.reduce((sum, b) => sum + b.cps * count(b), 0);
+  const unitPrice = (b, extra) => Math.ceil(b.cost * Math.pow(PRICE_GROWTH, count(b) + extra));
   const population = () => BUILDINGS.reduce((sum, b) => sum + b.pop * count(b), 0);
+  const ownedUpgrades = () => UPGRADES.filter((u) => state.upgrades[u.id]);
+
+  // Prix total pour acheter qty bâtiments d’un coup (chaque exemplaire coûte 15 % de plus).
+  function priceFor(b, qty) {
+    let total = 0;
+    for (let k = 0; k < qty; k++) total += unitPrice(b, k);
+    return total;
+  }
+
+  // Combien d’exemplaires on peut s’offrir avec les pièces actuelles.
+  function maxAffordable(b) {
+    let qty = 0;
+    let total = 0;
+    while (qty < 1000 && total + unitPrice(b, qty) <= state.coins) total += unitPrice(b, qty++);
+    return qty;
+  }
+
+  const buyQty = (b) => (state.buyMode === "max" ? Math.max(1, maxAffordable(b)) : state.buyMode);
+
+  // Production d’un exemplaire, avec ses améliorations (×2 chacune).
+  const buildingCps = (b) => b.cps * ownedUpgrades().reduce((m, u) => (u.effect.building === b.id ? m * 2 : m), 1);
+  const popBonus = () => ownedUpgrades().reduce((sum, u) => sum + (u.effect.popBonus || 0), 0) * population();
+  const perSecond = () => BUILDINGS.reduce((sum, b) => sum + buildingCps(b) * count(b), 0) * (1 + popBonus());
 
   const buffMult = (buff) => (performance.now() < buff.until ? buff.mult : 1);
   const productionRate = () => perSecond() * buffMult(buffs.prod);
@@ -74,10 +128,21 @@
 
   function clickValue() {
     let value = 1;
-    if (state.upgrades.machette) value *= 2;
-    if (state.upgrades.pirogue) value *= 2;
-    if (state.upgrades.boussole) value += perSecond() * 0.01;
+    ownedUpgrades().forEach((u) => {
+      if (u.effect.click) value *= u.effect.click;
+      if (u.effect.clickFromProd) value += perSecond() * u.effect.clickFromProd;
+    });
     return value * buffMult(buffs.click) * comboMult();
+  }
+
+  const hasAutomation = () => ownedUpgrades().some((u) => u.effect.auto);
+
+  function isUnlocked(u) {
+    const need = u.unlock;
+    if (need.earned && state.totalEarned < need.earned) return false;
+    if (need.pop && population() < need.pop) return false;
+    if (need.building && (state.owned[need.building] || 0) < need.owned) return false;
+    return true;
   }
 
   function stageIndex() {
@@ -112,15 +177,19 @@
   // Les boutons sont créés une fois, puis seuls leurs textes sont mis à jour.
   function buildShop() {
     $("buildings").innerHTML = BUILDINGS.map((b) => `
-      <button class="item" type="button" data-building="${b.id}" hidden>
-        <span class="item-emoji">${b.emoji}</span>
-        <span>
-          <span class="item-name">${b.name}</span><br>
-          <span class="item-info">+${format(b.cps, true)} 🪙/s · +${b.pop} 👥</span><br>
-          <span class="item-price"></span>
-        </span>
-        <span class="item-count"></span>
-      </button>`).join("");
+      <div class="row" data-row="${b.id}" hidden>
+        <button class="item" type="button" data-building="${b.id}">
+          <span class="item-emoji">${b.emoji}</span>
+          <span>
+            <span class="item-name">${b.name}</span><br>
+            <span class="item-info"></span><br>
+            <span class="item-price"></span>
+          </span>
+          <span class="item-count"></span>
+        </button>
+        <button class="auto-toggle" type="button" data-auto="${b.id}" aria-pressed="false" hidden
+          aria-label="Achat automatique : ${b.name}"><span>🤖</span>Auto</button>
+      </div>`).join("");
 
     $("upgrades").innerHTML = UPGRADES.map((u) => `
       <button class="item upgrade" type="button" data-upgrade="${u.id}" hidden>
@@ -160,18 +229,33 @@
     renderScene();
 
     // Un bâtiment apparaît quand on a gagné la moitié de son prix (le premier est toujours visible).
+    const automation = hasAutomation();
     BUILDINGS.forEach((b, i) => {
+      document.querySelector(`[data-row="${b.id}"]`).hidden =
+        !(i === 0 || count(b) > 0 || state.totalEarned >= b.cost / 2);
       const el = document.querySelector(`[data-building="${b.id}"]`);
-      el.hidden = !(i === 0 || count(b) > 0 || state.totalEarned >= b.cost / 2);
-      el.disabled = state.coins < price(b);
-      el.querySelector(".item-price").textContent = format(price(b)) + " 🪙";
+      const qty = buyQty(b);
+      const cost = priceFor(b, qty);
+      el.disabled = state.coins < cost;
+      el.querySelector(".item-info").textContent = `+${format(buildingCps(b), true)} 🪙/s · +${b.pop} 👥`;
+      el.querySelector(".item-price").textContent = format(cost) + " 🪙" + (qty > 1 ? ` (×${qty})` : "");
       el.querySelector(".item-count").textContent = count(b) || "";
+
+      const toggle = document.querySelector(`[data-auto="${b.id}"]`);
+      toggle.hidden = !automation;
+      toggle.setAttribute("aria-pressed", String(!!state.auto[b.id]));
     });
+    document.querySelectorAll("#buy-mode button").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.qty === String(state.buyMode)));
+    });
+    const bonus = popBonus();
+    $("pop-bonus").hidden = bonus === 0;
+    $("pop-bonus").textContent = `🏛️ Mairie : +${format(bonus * 100, true)} % de production grâce aux habitants`;
 
     let anyUpgrade = false;
     UPGRADES.forEach((u) => {
       const el = document.querySelector(`[data-upgrade="${u.id}"]`);
-      const visible = !state.upgrades[u.id] && state.totalEarned >= u.unlock;
+      const visible = !state.upgrades[u.id] && isUnlocked(u);
       el.hidden = !visible;
       el.disabled = state.coins < u.cost;
       anyUpgrade = anyUpgrade || visible;
@@ -303,16 +387,55 @@
     render();
   }
 
+  function buy(b, qty) {
+    const cost = priceFor(b, qty);
+    if (state.coins < cost) return false;
+    state.coins -= cost;
+    state.owned[b.id] = count(b) + qty;
+    welcome(b.pop * qty);
+    checkStage();
+    return true;
+  }
+
+  // L’intendant achète, une fois par seconde, le bâtiment automatique le moins cher tant qu’il le peut.
+  function autoBuy() {
+    if (!hasAutomation()) return;
+    const chosen = BUILDINGS.filter((b) => state.auto[b.id]);
+    let newcomers = 0;
+    for (let n = 0; n < MAX_AUTO_BUYS_PER_SECOND && chosen.length; n++) {
+      const cheapest = chosen.reduce((best, b) => (unitPrice(b, 0) < unitPrice(best, 0) ? b : best));
+      const cost = unitPrice(cheapest, 0);
+      if (state.coins < cost) break;
+      state.coins -= cost;
+      state.owned[cheapest.id] = count(cheapest) + 1;
+      newcomers += cheapest.pop;
+    }
+    if (newcomers > 0) {
+      welcome(newcomers);
+      checkStage();
+      render();
+    }
+  }
+
+  function onBuyModeClick(event) {
+    const button = event.target.closest("button");
+    if (!button) return;
+    state.buyMode = button.dataset.qty === "max" ? "max" : Number(button.dataset.qty);
+    render();
+  }
+
   function onShopClick(event) {
     const button = event.target.closest("button");
     if (!button || button.disabled) return;
 
     const building = BUILDINGS.find((b) => b.id === button.dataset.building);
-    if (building && state.coins >= price(building)) {
-      state.coins -= price(building);
-      state.owned[building.id] = count(building) + 1;
-      welcome(building.pop);
-      checkStage();
+    if (building) buy(building, buyQty(building));
+
+    if (button.dataset.auto) {
+      const id = button.dataset.auto;
+      state.auto[id] = !state.auto[id];
+      const b = BUILDINGS.find((x) => x.id === id);
+      toast(state.auto[id] ? `🤖 ${b.name} : achat automatique activé` : `${b.name} : achat automatique arrêté`);
     }
 
     const upgrade = UPGRADES.find((u) => u.id === button.dataset.upgrade);
@@ -485,7 +608,9 @@
   $("reset").addEventListener("click", onReset);
   document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
   window.addEventListener("pagehide", save);
+  $("buy-mode").addEventListener("click", onBuyModeClick);
   setInterval(save, SAVE_EVERY_MS);
+  setInterval(autoBuy, 1000);
 
   let lastTick = performance.now();
   let lastRender = 0;
