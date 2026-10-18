@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2bb3c0">
+  <title>Cookies Clique — L’île déserte</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏝️</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="stats">
+    <div class="stat">
+      <span class="stat-value" id="coins">0</span>
+      <span class="stat-label">🪙 pièces</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="per-second">0</span>
+      <span class="stat-label">par seconde</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="population">0</span>
+      <span class="stat-label">👥 habitants</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="island-zone">
+      <h1 id="stage-title">Îlot désert</h1>
+      <p class="stage-next" id="stage-next"></p>
+      <button class="island" id="island" type="button" aria-label="Cliquer sur l’île pour gagner des pièces">
+        <span id="island-emoji">🏝️</span>
+      </button>
+      <p class="click-hint">Touchez l’île : <strong id="click-value">+1</strong> 🪙</p>
+    </section>
+
+    <section class="shop">
+      <div id="upgrades-block" hidden>
+        <h2>Améliorations</h2>
+        <div class="upgrades" id="upgrades"></div>
+      </div>
+      <h2>Construire</h2>
+      <div class="buildings" id="buildings"></div>
+      <button class="reset" id="reset" type="button">Recommencer la partie</button>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="game.js"></script>
+</body>
+</html>

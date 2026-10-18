@@ -1,0 +1,166 @@
+:root {
+  --sky: #bdeff5;
+  --sea: #2bb3c0;
+  --sea-dark: #157a87;
+  --sand: #f7e3b5;
+  --sand-dark: #e3c27f;
+  --card: #fffaf0;
+  --ink: #23343a;
+  --muted: #6b7f84;
+  --gold: #e9a723;
+  --ok: #1f9d6b;
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html, body { margin: 0; }
+html { background: var(--sea); }
+
+body {
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--sky) 0%, #8fdde6 45%, var(--sea) 100%) fixed;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button { font: inherit; color: inherit; }
+
+/* Compteurs */
+.stats {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: rgba(255, 250, 240, .9);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .08);
+}
+.stat { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.stat-value { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stat-label { font-size: .8rem; color: var(--muted); }
+
+/* Mise en page */
+.layout {
+  display: grid;
+  gap: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 16px;
+}
+@media (min-width: 800px) {
+  .layout { grid-template-columns: 1fr 380px; align-items: start; }
+  .island-zone { position: sticky; top: 90px; }
+}
+
+/* L’île */
+.island-zone { text-align: center; }
+.island-zone h1 { margin: 8px 0 2px; font-size: 1.6rem; }
+.stage-next { margin: 0 0 12px; color: var(--sea-dark); font-size: .9rem; min-height: 1.2em; }
+
+.island {
+  width: min(70vw, 280px);
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 60%, var(--sand) 0 48%, var(--sand-dark) 49% 55%, rgba(255, 255, 255, .5) 56% 60%, transparent 61%);
+  font-size: min(36vw, 140px);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition: transform .08s;
+}
+.island:active { transform: scale(.94); }
+.island:focus-visible { outline: 4px solid var(--card); outline-offset: 4px; }
+.click-hint { margin: 12px 0 0; color: var(--ink); }
+
+/* Animation « +1 🪙 » */
+.float {
+  position: fixed;
+  z-index: 10;
+  pointer-events: none;
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: var(--gold);
+  text-shadow: 0 1px 0 #fff, 0 0 6px rgba(255, 255, 255, .8);
+  animation: float-up .9s ease-out forwards;
+}
+@keyframes float-up {
+  from { opacity: 1; transform: translate(-50%, -50%); }
+  to { opacity: 0; transform: translate(-50%, -140%); }
+}
+
+/* Boutique */
+.shop {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .1);
+}
+.shop h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.upgrades { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.buildings { display: flex; flex-direction: column; gap: 8px; }
+
+.item {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid var(--sand-dark);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.item:hover:not(:disabled) { border-color: var(--sea); }
+.item:disabled { cursor: not-allowed; opacity: .5; }
+.item-emoji { font-size: 2rem; text-align: center; }
+.item-name { font-weight: 700; }
+.item-info { font-size: .8rem; color: var(--muted); }
+.item-price { font-weight: 700; color: var(--gold); white-space: nowrap; }
+.item-count { font-size: 1.4rem; font-weight: 800; color: var(--sea-dark); min-width: 1.5em; text-align: right; }
+.item-side { display: flex; flex-direction: column; align-items: flex-end; }
+
+.upgrade { grid-template-columns: 36px 1fr; width: calc(50% - 4px); }
+.upgrade .item-emoji { font-size: 1.6rem; }
+
+.reset {
+  display: block;
+  margin: 20px auto 0;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Message en bas d’écran */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 20;
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: #fff;
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, 20px);
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
