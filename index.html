@@ -45,24 +45,65 @@
     </section>
 
     <section class="shop">
-      <div id="upgrades-block" hidden>
-        <h2>Améliorations</h2>
-        <div class="upgrades" id="upgrades"></div>
-      </div>
-      <div class="shop-head">
-        <h2>Construire</h2>
-        <div class="buy-mode" id="buy-mode" role="group" aria-label="Quantité à acheter">
-          <button type="button" data-qty="1" aria-pressed="true">×1</button>
-          <button type="button" data-qty="10" aria-pressed="false">×10</button>
-          <button type="button" data-qty="max" aria-pressed="false">Max</button>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Boutique"></nav>
+
+      <div class="panel" id="panel-build">
+        <div id="upgrades-block" hidden>
+          <h2>Améliorations</h2>
+          <div class="upgrades" id="upgrades"></div>
+        </div>
+        <div class="shop-head">
+          <h2>Construire</h2>
+          <div class="buy-mode" id="buy-mode" role="group" aria-label="Quantité à acheter">
+            <button type="button" data-qty="1" aria-pressed="true">×1</button>
+            <button type="button" data-qty="10" aria-pressed="false">×10</button>
+            <button type="button" data-qty="max" aria-pressed="false">Max</button>
+          </div>
+        </div>
+        <p class="pop-bonus" id="pop-bonus" hidden></p>
+        <div class="buildings" id="buildings"></div>
+        <div class="mystery" id="mystery" hidden>
+          <span class="mystery-icon" aria-hidden="true">?</span>
+          <span class="item-text"><span class="item-name">Bâtiment mystère</span><span class="item-info" id="mystery-text"></span></span>
         </div>
       </div>
-      <p class="pop-bonus" id="pop-bonus" hidden></p>
-      <div class="buildings" id="buildings"></div>
-      <div class="mystery" id="mystery" hidden>
-        <span class="mystery-icon" aria-hidden="true">?</span>
-        <span class="item-text"><span class="item-name">Bâtiment mystère</span><span class="item-info" id="mystery-text"></span></span>
+
+      <div class="panel" id="panel-jobs" hidden>
+        <h2>Métiers</h2>
+        <p class="panel-intro">Répartissez vos habitants. Chaque métier donne un bonus selon la part de l’île qui l’exerce.</p>
+        <div class="bar jobs-bar" id="jobs-bar" aria-hidden="true"></div>
+        <p class="panel-note">Sans métier : <strong id="jobs-free"></strong></p>
+        <div class="cards" id="jobs"></div>
       </div>
+
+      <div class="panel" id="panel-market" hidden>
+        <h2>Marché</h2>
+        <p class="panel-intro">Vos bâtiments récoltent des ressources. Vendez-les quand le prix monte, avant que le stock déborde.</p>
+        <p class="panel-note">Nouveaux prix dans <strong id="market-timer"></strong></p>
+        <div class="cards" id="market"></div>
+      </div>
+
+      <div class="panel" id="panel-bank" hidden>
+        <h2>Coffre</h2>
+        <p class="panel-intro">Les pièces placées dans le coffre rapportent des intérêts, même pendant votre absence. Le coffre contient au plus une heure de production.</p>
+        <div class="card bank">
+          <img class="px bank-icon" data-sprite="coffre" alt="">
+          <div class="bank-text">
+            <span class="item-info">Dans le coffre</span>
+            <span class="bank-amount"><span id="bank-amount">0</span> <img class="px coin-icon" data-sprite="piece" alt="pièces"></span>
+            <span class="item-info">Intérêts : <span id="bank-rate"></span> % par minute · <strong id="bank-gain"></strong> par minute</span>
+            <span class="bar"><span class="bar-fill" id="bank-fill"></span></span>
+            <span class="item-info">Capacité : <span id="bank-cap"></span></span>
+          </div>
+        </div>
+        <div class="bank-actions" id="bank-actions">
+          <button type="button" data-bank="0.25">Déposer 25 %</button>
+          <button type="button" data-bank="0.5">Déposer 50 %</button>
+          <button type="button" data-bank="1">Tout déposer</button>
+          <button type="button" data-bank="out" class="withdraw">Tout retirer</button>
+        </div>
+      </div>
+
       <button class="reset" id="reset" type="button">Recommencer la partie</button>
     </section>
   </main>

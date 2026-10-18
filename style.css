@@ -485,6 +485,138 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 .reset.confirm { color: var(--coral); font-weight: 700; }
 
+/* Synergies dans les cartes de bâtiments */
+.item-synergy { font-size: .8rem; color: var(--lagoon); }
+.syn-in { color: var(--green-dark); }
+.mini-icon { height: 16px; vertical-align: -3px; }
+
+/* ---------------------------------------------------------------------------
+   Onglets de la boutique
+   --------------------------------------------------------------------------- */
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0 3px 22px;
+}
+.tabs button {
+  position: relative;
+  padding: 6px 2px 4px;
+  border: none;
+  background: var(--paper);
+  box-shadow: var(--outline), 0 5px var(--ink);
+  font-size: .95rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tabs button[aria-selected="true"] {
+  transform: translateY(3px);
+  background: var(--lagoon);
+  color: var(--white);
+  box-shadow: var(--outline), 0 2px var(--ink);
+}
+.tabs button:disabled { cursor: not-allowed; background: #eadcbc; color: var(--muted); box-shadow: var(--outline); }
+.tabs button.new:not([aria-selected="true"]) { animation: blink-tab 1s steps(2) infinite; }
+@keyframes blink-tab { 50% { background: var(--gold); } }
+.tab-dot {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 12px;
+  height: 12px;
+  background: var(--coral);
+  box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink);
+}
+
+.panel-intro { margin: -4px 0 12px; font-size: .9rem; color: var(--muted); }
+.panel-note { margin: 10px 0 16px; font-size: .95rem; }
+.cards { display: flex; flex-direction: column; gap: 16px; }
+.card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 12px;
+  background: var(--paper);
+  box-shadow: var(--outline), 0 6px var(--ink), inset 0 -4px rgba(58, 36, 51, .1);
+}
+.card .item-icon .px { width: 48px; }
+.item-effect { font-size: .85rem; color: var(--green-dark); }
+
+/* Barres pixel (stock, coffre, répartition des métiers) */
+.bar {
+  display: flex;
+  height: 12px;
+  margin: 4px 3px 2px 0;
+  background: #e7d6b0;
+  box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink);
+}
+.bar-fill { display: block; width: 0; height: 100%; background: var(--lagoon); }
+.full .bar-fill { background: var(--coral); }
+.jobs-bar { height: 18px; margin: 4px 3px 0; }
+.seg { display: block; height: 100%; }
+.seg-pecheurs { background: var(--lagoon); }
+.seg-cueilleurs { background: var(--green); }
+.seg-batisseurs { background: var(--orange); }
+.seg-marchands { background: var(--gold); }
+
+/* − 10 % + */
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper button {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: var(--paper);
+  box-shadow: var(--outline), 0 4px var(--ink);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.stepper button:enabled:active { transform: translateY(3px); box-shadow: var(--outline), 0 1px var(--ink); }
+.stepper button:disabled { cursor: not-allowed; color: #c9b896; box-shadow: var(--outline); }
+.job-share { min-width: 3.2em; text-align: center; font-size: 1.15rem; }
+
+/* Marché */
+.trend { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+.trend.up { color: var(--green-dark); }
+.trend.down { color: var(--coral); }
+.trend-icon { height: 10px; vertical-align: 0; }
+.sell {
+  min-width: 82px;
+  padding: 8px 8px 6px;
+  border: none;
+  background: var(--gold);
+  box-shadow: var(--outline), 0 5px var(--ink);
+  font-size: 1rem;
+  line-height: 1.1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sell .sell-total { display: block; font-size: .85rem; color: var(--gold-text); }
+.sell:enabled:active { transform: translateY(3px); box-shadow: var(--outline), 0 2px var(--ink); }
+.sell:disabled { cursor: not-allowed; background: #eadcbc; color: var(--muted); box-shadow: var(--outline); }
+
+/* Coffre */
+.bank { grid-template-columns: 64px minmax(0, 1fr); }
+.bank-icon { width: 64px; }
+.bank-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bank-amount { font-size: 1.7rem; line-height: 1.1; }
+.bank-amount .coin-icon { height: 24px; vertical-align: -3px; }
+.bank-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; margin: 26px 3px 0; }
+.bank-actions button {
+  padding: 8px 6px 6px;
+  border: none;
+  background: var(--paper);
+  box-shadow: var(--outline), 0 5px var(--ink);
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.bank-actions .withdraw { background: var(--gold); }
+.bank-actions button:enabled:active { transform: translateY(3px); box-shadow: var(--outline), 0 2px var(--ink); }
+.bank-actions button:disabled { cursor: not-allowed; background: #eadcbc; color: var(--muted); box-shadow: var(--outline); }
+
 /* Bouteille à la mer et bateau de touristes */
 .bottle, .boat {
   position: fixed;
@@ -536,3 +668,7 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   .villager, .cloud, .waves, .stars::before, .buffs, .bottle,
   .item:enabled .item-icon .px, .auto-toggle[aria-pressed="true"] .px { animation: none; }
 }
+
+/* Carte métier : les boutons − / + passent sous le texte pour laisser de la place */
+.job { grid-template-columns: 48px minmax(0, 1fr); }
+.job .stepper { grid-column: 2; }

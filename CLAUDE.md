@@ -11,7 +11,9 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
   pixel par pixel (`drawIsland`) et les emplacements des bâtiments. Expose `window.PixelArt`.
 - `game.js` : toute la logique, dans une seule fonction `(function(){ "use strict"; … })();`.
   Les données d’équilibrage sont en haut : `BUILDINGS`, `UPGRADES` (+ `BUILDING_UPGRADES`), `STAGES`,
-  et les réglages des événements (`BOTTLE`, `BOAT`, `FRENZY`, `GOLD_CLICK`).
+  les réglages des événements (`BOTTLE`, `BOAT`, `FRENZY`, `GOLD_CLICK`) et de l’économie
+  (`SYNERGIES`, `JOBS`, `RESOURCES`, `MARKET`, `BANK`, `TABS`).
+- La boutique a des onglets : Construire, Métiers, Marché, Coffre (débloqués au fil de la partie).
 
 ## Technique
 - HTML/CSS/JS sans framework ni npm.
