@@ -112,6 +112,8 @@
     { id: "emploi",     name: "Plein emploi",         desc: "Donner un métier à tous les habitants", test: () => freeShare() < 0.001 },
     { id: "coffre",     name: "Coffre rempli",        desc: "Remplir le coffre",                     test: () => state.bank >= bankCapacity() - 1 },
     { id: "nuit",       name: "Nuit blanche",         desc: "Jouer entre 20 h et 7 h",               test: () => document.documentElement.classList.contains("night") },
+    { id: "dore",       name: "Pêche miraculeuse",    desc: "Attraper un poisson doré",              test: () => (state.stats.goldFish || 0) >= 1 },
+    { id: "voyageur",   name: "Grand voyageur",       desc: "Réussir 5 expéditions",                 test: () => (state.stats.expeditions || 0) >= 5 },
     { id: "chance",     name: "Chanceux",             desc: "Tourner la roue 7 fois",                test: () => (state.stats.spins || 0) >= 7 },
   ];
 
@@ -156,6 +158,24 @@
     { min: 0,  mult: -0.2, label: "affamés",      effect: "production −20\u00a0%" },
   ];
 
+  // Pêche à la ligne : un mini-jeu de réflexe, utilisable toutes les 45 secondes.
+  const FISHING = {
+    cooldown: 45,
+    zoneWidth: 0.2,       // zone verte : 20 % de la barre
+    goldWidth: 0.06,      // centre doré : 6 %
+    speed: 0.9,           // le curseur traverse la barre en un peu plus d’une seconde
+    goldPriceMult: 100,   // poisson doré = 100 fois le prix d’un poisson
+    silverStock: 0.3,     // poisson argenté = un banc qui remplit 30 % du stock
+  };
+
+  // Routes commerciales : on envoie tout le stock d’une ressource vers une autre île.
+  const ROUTES = [
+    { id: "cotiere",   name: "Route côtière",  minutes: 10,  risk: 0,    mult: 1.5 },
+    { id: "large",     name: "Grand large",    minutes: 30,  risk: 0.15, mult: 3 },
+    { id: "lointaine", name: "Îles lointaines", minutes: 120, risk: 0.3,  mult: 6 },
+  ];
+  const EXPEDITION_MIN_LOAD = 10;
+
   // Commandes des navires marchands : livrer une quantité avant la fin du délai, payée 2 à 3 fois le prix.
   const ORDERS = { firstDelay: 90, minDelay: 180, maxDelay: 360, duration: 300, minMult: 2, maxMult: 3 };
 
@@ -178,6 +198,8 @@
     { id: "marche",     name: "Marché",                icon: "sac" },
     { id: "evenements", name: "Bouteilles et bateaux", icon: "bouteille" },
     { id: "commandes",  name: "Commandes livrées",     icon: "bateau" },
+    { id: "expeditions", name: "Routes commerciales",  icon: "boussole" },
+    { id: "peche",      name: "Pêche à la ligne",      icon: "poisson_dore" },
     { id: "coffre",     name: "Intérêts du coffre",    icon: "coffre" },
   ];
 
@@ -201,12 +223,15 @@
       bottleStreak: 0,    // bouteilles attrapées d’affilée
       lastSpin: "",       // date du dernier tour de roue
       achievements: {},   // succès débloqués
+      fishReadyAt: 0,     // pêche à la ligne de nouveau possible à partir de (Date.now)
+      expedition: null,   // bateau en route : { route, res, qty, value, returnAt }
+      expeditionRes: "poisson", // ressource choisie pour la prochaine expédition
       order: null,  // commande en cours : { res, qty, reward, expiresAt }
       autoSellTotal: 0,
       autoMode: "cheap", // l’intendant achète le moins cher ("cheap") ou le plus rentable ("best")
       stats: {
         sources: { batiments: 0, clics: 0, marche: 0, evenements: 0, commandes: 0, coffre: 0 },
-        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0, superFrenzies: 0, spins: 0,
+        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0, superFrenzies: 0, spins: 0, goldFish: 0, expeditions: 0, shipwrecks: 0,
       },
       tabsSeen: { build: true },
     };
@@ -956,6 +981,7 @@
       nextMarketAt = now + MARKET.changeEvery * 1000;
     }
     checkOrder(now);
+    checkExpedition();
   }
 
   // Un navire marchand passe commande de temps en temps (seulement quand le marché est ouvert).
@@ -1103,6 +1129,8 @@
       ["Commandes livrées", format(st.orders || 0)],
       ["Super-frénésies", format(st.superFrenzies || 0)],
       ["Tours de roue", format(st.spins || 0)],
+      ["Poissons dorés", format(st.goldFish || 0)],
+      ["Expéditions réussies", format(st.expeditions || 0)],
     ];
     $("stats-records").innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
     renderAchievements();
@@ -1157,6 +1185,8 @@
     $("market-timer").textContent = Math.max(0, Math.ceil((nextMarketAt - performance.now()) / 1000)) + " s";
     renderSatiety();
     renderOrder();
+    renderFishing();
+    renderExpedition();
   }
 
   function renderSatiety() {
@@ -1438,6 +1468,161 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 6 quater. Pêche à la ligne et routes commerciales
+  // ---------------------------------------------------------------------------
+
+  const fishingReady = () => Date.now() >= state.fishReadyAt;
+  let fishing = null; // partie en cours : { pos, dir, zone, last }
+
+  function openFishing() {
+    $("fishing-modal").hidden = false;
+    if (!fishingReady()) {
+      $("fishing-result").textContent = `Les poissons reviennent dans ${formatDuration((state.fishReadyAt - Date.now()) / 1000)}.`;
+      $("fishing-strike").disabled = true;
+      return;
+    }
+    // Une zone verte placée au hasard, le centre doré au milieu.
+    const zone = 0.1 + Math.random() * (0.8 - FISHING.zoneWidth);
+    $("fishing-zone").style.left = zone * 100 + "%";
+    $("fishing-zone").style.width = FISHING.zoneWidth * 100 + "%";
+    $("fishing-result").textContent = "Attendez que le curseur passe dans la zone verte…";
+    $("fishing-strike").disabled = false;
+    fishing = { pos: 0, dir: 1, zone, last: performance.now() };
+    requestAnimationFrame(moveCursor);
+  }
+
+  function moveCursor(now) {
+    if (!fishing) return;
+    const dt = Math.min(0.05, (now - fishing.last) / 1000);
+    fishing.last = now;
+    fishing.pos += fishing.dir * FISHING.speed * dt;
+    if (fishing.pos >= 1 || fishing.pos <= 0) {
+      fishing.dir *= -1;
+      fishing.pos = Math.max(0, Math.min(1, fishing.pos));
+    }
+    // Le curseur avance par crans de 2 %, comme dans un vieux jeu vidéo.
+    $("fishing-cursor").style.left = Math.round(fishing.pos * 50) * 2 + "%";
+    requestAnimationFrame(moveCursor);
+  }
+
+  function strike() {
+    if (!fishing) return;
+    const pos = Math.round(fishing.pos * 50) / 50;
+    const zone = fishing.zone;
+    fishing = null;
+    state.fishReadyAt = Date.now() + FISHING.cooldown * 1000;
+    $("fishing-strike").disabled = true;
+    const center = zone + FISHING.zoneWidth / 2;
+    const fish = RESOURCES.find((r) => r.id === "poisson");
+    let result;
+    if (Math.abs(pos - center) <= FISHING.goldWidth / 2) {
+      const gain = Math.max(500, sellPrice(fish) * FISHING.goldPriceMult);
+      earn(gain, "peche");
+      state.stats.goldFish = (state.stats.goldFish || 0) + 1;
+      result = `${icon("poisson_dore")} Poisson doré ! +${format(gain)} ${COIN}`;
+    } else if (pos >= zone && pos <= zone + FISHING.zoneWidth) {
+      const before = state.res.poisson;
+      state.res.poisson = Math.min(storage(fish), before + storage(fish) * FISHING.silverStock);
+      result = `${icon("poisson")} Un banc de poissons ! +${format(state.res.poisson - before)} poissons`;
+    } else {
+      result = "Raté… le poisson s’est échappé.";
+    }
+    $("fishing-result").innerHTML = result;
+    render();
+  }
+
+  function closeFishing() {
+    fishing = null;
+    $("fishing-modal").hidden = true;
+  }
+
+  function renderFishing() {
+    $("fishing-card").hidden = !foodActive();
+    $("fishing-info").textContent = fishingReady()
+      ? "Les poissons mordent ! Visez le centre doré."
+      : `Prochaine pêche dans ${formatDuration((state.fishReadyAt - Date.now()) / 1000)}`;
+    $("fishing-open").disabled = !fishingReady();
+  }
+
+  // ---- Routes commerciales ----
+  const portOpen = () => (state.owned.port || 0) > 0;
+
+  // Le bateau rentre tout seul (même pendant l’absence) : réussite ou tempête, tirée au retour.
+  function checkExpedition() {
+    const ship = state.expedition;
+    if (!ship || Date.now() < ship.returnAt) return;
+    state.expedition = null;
+    const route = ROUTES.find((r) => r.id === ship.route);
+    if (Math.random() < route.risk) {
+      state.stats.shipwrecks = (state.stats.shipwrecks || 0) + 1;
+      toast(`${icon("bateau")} Tempête sur la ${route.name.toLowerCase()} : la cargaison est perdue…`);
+    } else {
+      earn(ship.value, "expeditions");
+      state.stats.expeditions = (state.stats.expeditions || 0) + 1;
+      toast(`${icon("bateau")} Le bateau rentre de la ${route.name.toLowerCase()} : +${format(ship.value)} ${COIN}`);
+    }
+  }
+
+  function onExpeditionClick(event) {
+    const pickRes = event.target.closest("[data-exp-res]");
+    if (pickRes) {
+      // Chaque appui passe à la ressource suivante.
+      const list = RESOURCES.filter((r) => count(buildingOf(r)) > 0);
+      const i = list.findIndex((r) => r.id === state.expeditionRes);
+      state.expeditionRes = list[(i + 1) % list.length].id;
+      expeditionKey = "";
+      render();
+      return;
+    }
+    const button = event.target.closest("[data-route]");
+    if (!button || button.disabled || state.expedition) return;
+    const route = ROUTES.find((r) => r.id === button.dataset.route);
+    const r = RESOURCES.find((x) => x.id === state.expeditionRes);
+    const qty = Math.floor(state.res[r.id]);
+    if (qty < EXPEDITION_MIN_LOAD) return;
+    state.res[r.id] -= qty;
+    state.expedition = { route: route.id, res: r.id, qty, value: qty * sellPrice(r) * route.mult, returnAt: Date.now() + route.minutes * 60000 };
+    toast(`${icon("bateau")} Le bateau part sur la ${route.name.toLowerCase()} avec ${format(qty)} ${r.plural}`);
+    expeditionKey = "";
+    render();
+  }
+
+  // La carte est reconstruite seulement quand son contenu change (au plus une fois par seconde).
+  let expeditionKey = "";
+  function renderExpedition() {
+    $("expedition").hidden = !portOpen();
+    if (!portOpen()) return;
+    if (!RESOURCES.some((r) => r.id === state.expeditionRes && count(buildingOf(r)) > 0)) state.expeditionRes = "poisson";
+    const ship = state.expedition;
+    const r = RESOURCES.find((x) => x.id === (ship ? ship.res : state.expeditionRes));
+    const stock = Math.floor(state.res[r.id]);
+    const key = ship ? `${ship.route}|${Math.ceil((ship.returnAt - Date.now()) / 1000)}` : `${r.id}|${stock}|${format(sellPrice(r), true)}`;
+    if (key === expeditionKey) return;
+    expeditionKey = key;
+    let html = `<span class="item-icon">${icon("bateau")}</span><span class="item-text"><span class="item-name">Routes commerciales</span>`;
+    if (ship) {
+      const route = ROUTES.find((x) => x.id === ship.route);
+      const left = Math.max(0, (ship.returnAt - Date.now()) / 1000);
+      html += `<span class="item-info">En route : ${route.name}, ${format(ship.qty)} ${r.plural}</span>
+        <span class="item-effect">Valeur attendue : ${format(ship.value)} ${COIN}${route.risk ? ` · risque de tempête ${Math.round(route.risk * 100)}\u00a0%` : ""}</span>
+        <span class="bar"><span class="bar-fill" style="width:${100 - (left / (route.minutes * 60)) * 100}%"></span></span>
+        <span class="item-info">Retour dans ${formatDuration(left)}</span></span>`;
+    } else {
+      html += `<span class="item-info">Envoyez tout votre stock vers une autre île. Plus c’est loin, plus ça rapporte… et plus c’est risqué.</span></span>
+        <div class="routes">
+          <button type="button" class="route-res" data-exp-res>Cargaison : ${icon(r.id)} ${format(stock)} ${r.plural}</button>
+          ${ROUTES.map((route) => `
+            <button type="button" class="route" data-route="${route.id}" ${stock < EXPEDITION_MIN_LOAD ? "disabled" : ""}>
+              <span class="item-name">${route.name}</span>
+              <span class="item-info">${formatDuration(route.minutes * 60)} · ${route.risk ? `risque ${Math.round(route.risk * 100)}\u00a0%` : "sans risque"}</span>
+              <span class="item-price">${stock >= EXPEDITION_MIN_LOAD ? "≈ " + format(stock * sellPrice(r) * route.mult) : "min. " + EXPEDITION_MIN_LOAD} ${COIN}</span>
+            </button>`).join("")}
+        </div>`;
+    }
+    $("expedition").innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------------------
   // 7. Sauvegarde
   // ---------------------------------------------------------------------------
 
@@ -1505,6 +1690,10 @@
   $("wheel-open").addEventListener("click", openWheel);
   $("wheel-spin").addEventListener("click", spinWheel);
   $("wheel-close").addEventListener("click", () => { $("wheel-modal").hidden = true; });
+  $("fishing-open").addEventListener("click", openFishing);
+  $("fishing-strike").addEventListener("click", strike);
+  $("fishing-close").addEventListener("click", closeFishing);
+  $("expedition").addEventListener("click", onExpeditionClick);
   updateDayNight();
   setInterval(updateDayNight, 60000);
 

@@ -611,6 +611,9 @@
     ],
   };
 
+  // Variante dorée du poisson (pêche à la ligne), obtenue en changeant ses couleurs.
+  SPRITES.poisson_dore = SPRITES.poisson.map((row) => row.replace(/E/g, "Y").replace(/e/g, "y").replace(/m/g, "w"));
+
   // Couleurs des habitants : cheveux (h), peau (p), haut (c), short (l).
   const VILLAGER_LOOKS = [
     { h: "h", p: "p", c: "r", l: "E" },

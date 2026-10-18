@@ -779,6 +779,7 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   background: var(--gold);
   box-shadow: var(--outline), 0 5px var(--ink);
   font-size: 1.05rem;
+  color: var(--ink);
   cursor: pointer;
   touch-action: manipulation;
   animation: hop 1s steps(2) infinite;
@@ -821,3 +822,47 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .achievement.done { background: #fff1c9; }
 .achievement.done .px { filter: none; opacity: 1; }
 .achievement.done .item-name { color: var(--ink); }
+
+/* Pêche à la ligne */
+.fishing { grid-template-columns: 48px minmax(0, 1fr) auto; margin-bottom: 16px; }
+.fishing-track {
+  position: relative;
+  height: 36px;
+  margin: 18px 4px 6px;
+  background: var(--lagoon);
+  box-shadow: var(--outline), inset 0 -6px #1f7f93;
+}
+.fishing-zone { position: absolute; top: 0; bottom: 0; display: grid; place-items: center; background: var(--green); }
+.fishing-gold { width: 30%; height: 100%; background: var(--gold); }
+.fishing-cursor {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: 0;
+  width: 6px;
+  margin-left: -3px;
+  background: var(--coral);
+  box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink);
+}
+.wheel-result .px { width: 32px; vertical-align: middle; }
+
+/* Routes commerciales */
+.expedition { grid-template-columns: 48px minmax(0, 1fr); margin-bottom: 16px; }
+.routes { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.route, .route-res {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 10px 6px;
+  border: none;
+  background: var(--paper);
+  box-shadow: var(--outline), 0 4px var(--ink);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.route-res { flex-direction: row; align-items: center; gap: 6px; background: #fff1c9; }
+.route-res .px { width: 24px; }
+.route:enabled:active, .route-res:active { transform: translateY(3px); box-shadow: var(--outline), 0 1px var(--ink); }
+.route:disabled { cursor: not-allowed; background: #eadcbc; color: var(--muted); box-shadow: var(--outline); }

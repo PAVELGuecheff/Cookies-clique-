@@ -110,6 +110,12 @@
             <button type="button" class="refuse" data-order="refuse">Refuser</button>
           </span>
         </div>
+        <div class="card fishing" id="fishing-card" hidden>
+          <img class="px order-icon" data-sprite="poisson_dore" alt="">
+          <span class="item-text"><span class="item-name">Pêche à la ligne</span><span class="item-info" id="fishing-info"></span></span>
+          <button type="button" class="sell" id="fishing-open">Pêcher</button>
+        </div>
+        <div class="card expedition" id="expedition" hidden></div>
         <p class="pop-bonus" id="auto-sell-note" hidden>Négociant : <span id="auto-sell-total">0</span> pièces gagnées en ventes automatiques</p>
         <div class="cards" id="market"></div>
       </div>
@@ -163,6 +169,22 @@
       <div class="modal-actions">
         <button type="button" class="sell" id="wheel-spin">Tourner !</button>
         <button type="button" class="refuse" id="wheel-close">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="fishing-modal" hidden role="dialog" aria-modal="true" aria-labelledby="fishing-title">
+    <div class="modal-box">
+      <h2 id="fishing-title">Pêche à la ligne</h2>
+      <p class="panel-intro">Appuyez sur « Ferrer ! » quand le curseur passe dans la zone verte. En plein centre doré : un poisson doré !</p>
+      <div class="fishing-track">
+        <span class="fishing-zone" id="fishing-zone"><span class="fishing-gold"></span></span>
+        <span class="fishing-cursor" id="fishing-cursor"></span>
+      </div>
+      <p class="wheel-result" id="fishing-result"></p>
+      <div class="modal-actions">
+        <button type="button" class="sell" id="fishing-strike">Ferrer !</button>
+        <button type="button" class="refuse" id="fishing-close">Fermer</button>
       </div>
     </div>
   </div>
