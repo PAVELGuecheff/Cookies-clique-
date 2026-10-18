@@ -37,6 +37,14 @@
   const SAVE_EVERY_MS = 10000;
   const OFFLINE_MAX_S = 8 * 3600;
 
+  // Événements qui n’arrivent que quand le joueur est sur la page (délais en secondes).
+  const BOTTLE = { firstDelay: 20, minDelay: 40, maxDelay: 90, lifetime: 10 };
+  const BOAT = { firstDelay: 60, minDelay: 120, maxDelay: 240 };
+  const FRENZY = { mult: 7, seconds: 30 };      // production ×7 pendant 30 s
+  const GOLD_CLICK = { mult: 10, seconds: 15 }; // clic ×10 pendant 15 s
+  const COMBO_WINDOW_MS = 400; // délai max entre deux clics pour garder le combo
+  const COMBO_MAX = 50;        // 50 clics rapides = clic ×2
+
   // ---------------------------------------------------------------------------
   // 2. État de la partie
   // ---------------------------------------------------------------------------
@@ -45,6 +53,11 @@
     return { coins: 0, totalEarned: 0, owned: {}, upgrades: {}, stage: 0, savedAt: Date.now() };
   }
   let state = newState();
+
+  // Bonus temporaires : ils ne sont pas sauvegardés.
+  const buffs = { prod: { mult: 1, until: 0 }, click: { mult: 1, until: 0 } };
+  let combo = 0;
+  let lastClickAt = 0;
 
   // ---------------------------------------------------------------------------
   // 3. Calculs
@@ -55,12 +68,16 @@
   const perSecond = () => BUILDINGS.reduce((sum, b) => sum + b.cps * count(b), 0);
   const population = () => BUILDINGS.reduce((sum, b) => sum + b.pop * count(b), 0);
 
+  const buffMult = (buff) => (performance.now() < buff.until ? buff.mult : 1);
+  const productionRate = () => perSecond() * buffMult(buffs.prod);
+  const comboMult = () => 1 + Math.min(combo, COMBO_MAX) / COMBO_MAX;
+
   function clickValue() {
     let value = 1;
     if (state.upgrades.machette) value *= 2;
     if (state.upgrades.pirogue) value *= 2;
     if (state.upgrades.boussole) value += perSecond() * 0.01;
-    return value;
+    return value * buffMult(buffs.click) * comboMult();
   }
 
   function stageIndex() {
@@ -118,9 +135,17 @@
 
   function render() {
     $("coins").textContent = format(state.coins);
-    $("per-second").textContent = format(perSecond(), true);
+    $("per-second").textContent = format(productionRate(), true);
     $("population").textContent = format(population());
     $("click-value").textContent = "+" + format(clickValue(), true);
+    $("combo").textContent = combo >= 5 ? `Combo ×${format(comboMult(), true)}` : "";
+
+    const active = [];
+    const now = performance.now();
+    if (now < buffs.prod.until) active.push(`🔥 Frénésie : production ×${FRENZY.mult} · ${Math.ceil((buffs.prod.until - now) / 1000)} s`);
+    if (now < buffs.click.until) active.push(`✨ Clic d’or : clic ×${GOLD_CLICK.mult} · ${Math.ceil((buffs.click.until - now) / 1000)} s`);
+    $("buffs").textContent = active.join("  ");
+    $("buffs").hidden = active.length === 0;
 
     const stage = STAGES[stageIndex()];
     const next = STAGES[stageIndex() + 1];
@@ -182,6 +207,9 @@
   // ---------------------------------------------------------------------------
 
   function onIslandClick(event) {
+    const now = performance.now();
+    combo = now - lastClickAt <= COMBO_WINDOW_MS ? combo + 1 : 0;
+    lastClickAt = now;
     const value = clickValue();
     earn(value);
     // Au clavier, il n’y a pas de position de souris : on vise le centre de l’île.
@@ -236,7 +264,99 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 6. Sauvegarde
+  // 6. Événements : bouteille à la mer et bateau de touristes
+  // ---------------------------------------------------------------------------
+
+  const randomBetween = (min, max) => min + Math.random() * (max - min);
+  let nextBottleAt = performance.now() + BOTTLE.firstDelay * 1000;
+  let nextBoatAt = performance.now() + BOAT.firstDelay * 1000;
+  let bottleOnScreen = false;
+  let boatOnScreen = false;
+
+  // Petit gain affiché au-dessus de l’objet touché.
+  function rewardAt(el, text) {
+    const rect = el.getBoundingClientRect();
+    floatText(rect.left + rect.width / 2, rect.top, text);
+    el.remove();
+  }
+
+  function spawnBottle() {
+    bottleOnScreen = true;
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "bottle";
+    el.textContent = "🍾";
+    el.setAttribute("aria-label", "Bouteille à la mer : touchez-la vite !");
+    el.style.left = randomBetween(8, 82) + "%";
+    el.style.top = randomBetween(25, 75) + "%";
+    const timer = setTimeout(() => {
+      el.remove();
+      bottleOnScreen = false;
+    }, BOTTLE.lifetime * 1000);
+    el.addEventListener("click", () => {
+      clearTimeout(timer);
+      bottleOnScreen = false;
+      openBottle(el);
+    });
+    document.body.appendChild(el);
+  }
+
+  function openBottle(el) {
+    const roll = Math.random();
+    if (roll < 0.5) {
+      const gain = Math.max(clickValue() * 30, Math.min(state.coins * 0.15, perSecond() * 900));
+      earn(gain);
+      rewardAt(el, "+" + format(gain) + " 🪙");
+      toast(`🍾 Un trésor dans la bouteille : +${format(gain)} 🪙`);
+    } else if (roll < 0.8) {
+      buffs.prod = { mult: FRENZY.mult, until: performance.now() + FRENZY.seconds * 1000 };
+      rewardAt(el, "🔥 ×" + FRENZY.mult);
+      toast(`🔥 Frénésie ! Production ×${FRENZY.mult} pendant ${FRENZY.seconds} s`);
+    } else {
+      buffs.click = { mult: GOLD_CLICK.mult, until: performance.now() + GOLD_CLICK.seconds * 1000 };
+      rewardAt(el, "✨ ×" + GOLD_CLICK.mult);
+      toast(`✨ Clic d’or ! Chaque clic ×${GOLD_CLICK.mult} pendant ${GOLD_CLICK.seconds} s`);
+    }
+    render();
+  }
+
+  function spawnBoat() {
+    boatOnScreen = true;
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "boat";
+    el.textContent = "⛵";
+    el.setAttribute("aria-label", "Bateau de touristes : touchez-le pour les accueillir");
+    el.style.top = randomBetween(18, 60) + "%";
+    el.addEventListener("animationend", () => {
+      el.remove();
+      boatOnScreen = false;
+    });
+    el.addEventListener("click", () => {
+      boatOnScreen = false;
+      const gain = Math.max(50, perSecond() * 120 + clickValue() * 25);
+      earn(gain);
+      rewardAt(el, "+" + format(gain) + " 🪙");
+      toast(`⛵ Des touristes débarquent et dépensent +${format(gain)} 🪙`);
+      render();
+    });
+    document.body.appendChild(el);
+  }
+
+  function checkEvents(now) {
+    if (!bottleOnScreen && now >= nextBottleAt) {
+      spawnBottle();
+      nextBottleAt = now + randomBetween(BOTTLE.minDelay, BOTTLE.maxDelay) * 1000;
+    }
+    if (!boatOnScreen && now >= nextBoatAt) {
+      spawnBoat();
+      nextBoatAt = now + randomBetween(BOAT.minDelay, BOAT.maxDelay) * 1000;
+    }
+    if (combo > 0 && now - lastClickAt > COMBO_WINDOW_MS * 2) combo = 0;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7. Sauvegarde
   // ---------------------------------------------------------------------------
 
   function save() {
@@ -268,7 +388,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 7. Démarrage et boucle de jeu
+  // 8. Démarrage et boucle de jeu
   // ---------------------------------------------------------------------------
 
   buildShop();
@@ -287,9 +407,11 @@
   let lastRender = 0;
   function tick(now) {
     // Quand l’onglet est caché, le navigateur met la boucle en pause : on rattrape au retour.
+    // Le bonus de frénésie ne compte pas pour ce rattrapage.
     const seconds = Math.min((now - lastTick) / 1000, OFFLINE_MAX_S);
     lastTick = now;
-    earn(perSecond() * seconds);
+    earn((seconds > 1 ? perSecond() : productionRate()) * seconds);
+    checkEvents(performance.now());
     if (now - lastRender > 100) { // 10 rafraîchissements par seconde suffisent
       lastRender = now;
       render();
