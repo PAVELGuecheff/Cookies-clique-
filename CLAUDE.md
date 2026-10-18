@@ -18,6 +18,10 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
 - La boutique a des onglets : Construire, Métiers, Marché, Coffre (débloqués au fil de la partie), Stats.
 - Rentabilité : `buildingPayback()` / `upgradePayback()` essaient l’achat, mesurent le gain de `perSecond()` puis annulent.
   Elles servent au badge « Meilleur achat » et à l’intendant en mode « le plus rentable ».
+- Autres systèmes (réglages en haut de `game.js`) : série de bouteilles (`BOTTLE_STREAK`), roue du jour (`WHEEL`),
+  succès (`ACHIEVEMENTS`, +1 % chacun), pêche à la ligne (`FISHING`), routes commerciales (`ROUTES`),
+  niveaux de bâtiment (`LEVELS`), habitants célèbres (`CELEBS`, `CELEBRITIES`, effets lus par `celebEffect()`),
+  recherche (`TECHS`, `hasTech()`) et merveilles (`WONDERS`). Onglets : Construire, Métiers, Marché, Coffre, Projets, Stats.
 - `earn(montant, source)` : la source (`batiments`, `clics`, `marche`, `evenements`, `commandes`) alimente l’onglet Stats.
 
 ## Technique

@@ -722,10 +722,10 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 @media (max-width: 480px) {
   .tabs { grid-template-columns: repeat(6, 1fr); row-gap: 14px; }
   .tabs button { grid-column: span 2; }
-  .tabs button:nth-child(n + 4) { grid-column: span 3; }
+
 }
 @media (min-width: 481px) {
-  .tabs { grid-template-columns: repeat(5, 1fr); }
+  .tabs { grid-template-columns: repeat(6, 1fr); }
   .tabs button { font-size: .85rem; }
 }
 
@@ -910,3 +910,27 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .celeb-portrait .px { width: 35px; }
 .celeb-portrait .celeb-star { position: absolute; top: -12px; right: -6px; width: 16px; }
 @media (prefers-reduced-motion: reduce) { .scene-star { animation: none; } }
+
+/* Recherche */
+.knowledge { display: flex; align-items: center; gap: 8px; }
+.knowledge .px { width: 24px; }
+.tech { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.tech .item-icon .px { width: 36px; }
+.tech-buy { min-width: 78px; }
+.tech-unit { display: block; font-size: .75rem; color: var(--gold-text); }
+.tech.locked { background: #eadcbc; }
+.tech.locked .item-icon .px { opacity: .45; }
+.tech.done { background: #e4f3dc; }
+.tech-needs:empty { display: none; }
+
+/* Merveilles */
+.wonders-title { margin-top: 30px !important; }
+.wonder { grid-template-columns: 56px minmax(0, 1fr); }
+.wonder.done { background: #e4f3dc; }
+.wonder-icon { width: 48px; justify-self: center; }
+.wonder-parts { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.wonder-part { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.wonder-part .part-icon { width: 24px; }
+.wonder-part .coin-icon { height: 20px; justify-self: center; }
+.wonder-part .refuse { padding: 4px 10px; }
+.wonder-part .refuse:disabled { cursor: not-allowed; color: var(--muted); box-shadow: var(--outline); }

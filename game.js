@@ -117,6 +117,8 @@
     { id: "niveau",     name: "Chef-d’œuvre",         desc: "Monter un bâtiment au niveau 5",        test: () => BUILDINGS.some((b) => level(b) >= LEVELS.max) },
     { id: "celebre",    name: "Tapis rouge",          desc: "Accueillir un habitant célèbre",        test: () => (state.stats.celebs || 0) >= 1 },
     { id: "vip",        name: "Salon VIP",            desc: "Garder 3 habitants célèbres",           test: () => state.celebs.length >= CELEBS.slots },
+    { id: "savant",     name: "Savant",               desc: "Découvrir 6 technologies",              test: () => Object.keys(state.techs).length >= 6 },
+    { id: "merveille",  name: "Merveille du monde",   desc: "Construire une merveille",              test: () => WONDERS.some((w) => wonderBuilt(w)) },
     { id: "chance",     name: "Chanceux",             desc: "Tourner la roue 7 fois",                test: () => (state.stats.spins || 0) >= 7 },
   ];
 
@@ -159,6 +161,34 @@
     { min: 80, mult: 0.1,  label: "bien nourris", effect: "production +10\u00a0%" },
     { min: 30, mult: 0,    label: "rassasiés",    effect: "pas de bonus" },
     { min: 0,  mult: -0.2, label: "affamés",      effect: "production −20\u00a0%" },
+  ];
+
+  // Recherche : les habitants produisent des points de savoir (racine carrée de la population × 0,05 par seconde),
+  // dépensés dans des technologies. needs = technologies à découvrir avant.
+  const KNOWLEDGE_RATE = 0.05;
+  const TECHS = [
+    { id: "filets",      name: "Filets en nylon",   info: "Récolte de poisson ×2",                    cost: 100,  needs: [] },
+    { id: "greniers",    name: "Greniers",          info: "Stocks ×2",                                cost: 150,  needs: [] },
+    { id: "irrigation",  name: "Irrigation",        info: "Cocoteraies ×2",                           cost: 300,  needs: ["filets"] },
+    { id: "cartographie", name: "Cartographie",     info: "Routes commerciales : risque divisé par 2", cost: 400,  needs: ["greniers"] },
+    { id: "conserves",   name: "Conserves",         info: "Les habitants mangent 25\u00a0% de moins",  cost: 600,  needs: ["greniers"] },
+    { id: "comptabilite", name: "Comptabilité",     info: "Intérêts du coffre +50\u00a0%",            cost: 800,  needs: [] },
+    { id: "signaux",     name: "Signaux lumineux",  info: "Bouteilles 30\u00a0% plus fréquentes",     cost: 1000, needs: ["cartographie"] },
+    { id: "ecole",       name: "École",             info: "Savoir ×2",                                cost: 1500, needs: [] },
+    { id: "architecture", name: "Architecture",     info: "Niveaux de bâtiment 2 fois moins chers",   cost: 2500, needs: ["irrigation"] },
+    { id: "diplomatie",  name: "Diplomatie",        info: "Commandes des navires payées +50\u00a0%",  cost: 3000, needs: ["cartographie"] },
+    { id: "tourisme",    name: "Office du tourisme", info: "Bateaux de touristes ×2",                 cost: 5000, needs: ["diplomatie"] },
+    { id: "industrie",   name: "Industrie",         info: "Toute la production +25\u00a0%",           cost: 8000, needs: ["architecture", "ecole"] },
+  ];
+
+  // Merveilles : d’énormes chantiers, construits l’un après l’autre, payés en ressources et en pièces.
+  const WONDERS = [
+    { id: "phare",  sprite: "phare",  name: "Phare géant",     info: "Production +25\u00a0% et bouteilles 2 fois plus fréquentes",
+      need: { bois: 3000, coins: 2e6 }, prod: 0.25, place: { x: 10, y: 44 } },
+    { id: "totem",  sprite: "totem",  name: "Grand totem",     info: "Production +50\u00a0%",
+      need: { bois: 5000, noix: 5000, coins: 5e7 }, prod: 0.5, place: { x: 101, y: 44 } },
+    { id: "volcan", sprite: "volcan", name: "Volcan aménagé",  info: "Production ×2",
+      need: { bois: 20000, poisson: 20000, noix: 20000, coins: 5e9 }, prod: 1, place: { x: 56, y: 22 } },
   ];
 
   // Niveaux de bâtiment : à partir de 10 exemplaires, on améliore tout un type (niveau 1 à 5).
@@ -208,6 +238,7 @@
     { id: "jobs",   name: "Métiers", unlockText: "à 10 habitants", unlocked: () => population() >= 10 },
     { id: "market", name: "Marché",  unlockText: "avec une cabane de pêcheur", unlocked: () => (state.owned.pecheur || 0) > 0 },
     { id: "bank",   name: "Coffre",  unlockText: "après 5 000 pièces gagnées", unlocked: () => state.totalEarned >= 5000 },
+    { id: "projects", name: "Projets", unlockText: "à 100 habitants", unlocked: () => population() >= 100 },
     { id: "stats",  name: "Stats" },
   ];
 
@@ -249,6 +280,9 @@
       levels: {},     // niveau de chaque type de bâtiment (1 par défaut)
       celebs: [],     // habitants célèbres présents (identifiants)
       visitor: null,  // visiteur célèbre en attente : { id, expiresAt }
+      knowledge: 0,   // points de savoir
+      techs: {},      // technologies découvertes
+      wonders: {},    // apports à chaque merveille : { phare: { bois: 1200, coins: 5e5, built: false } }
       order: null,  // commande en cours : { res, qty, reward, expiresAt }
       autoSellTotal: 0,
       autoMode: "cheap", // l’intendant achète le moins cher ("cheap") ou le plus rentable ("best")
@@ -279,7 +313,11 @@
     return sum + ((celeb && celeb.effect[key]) || 0);
   }, 0);
   const level = (b) => state.levels[b.id] || 1;
-  const levelCost = (b) => b.cost * LEVELS.costMult[level(b) - 1];
+  const hasTech = (id) => !!state.techs[id];
+  const levelCost = (b) => b.cost * LEVELS.costMult[level(b) - 1] * (hasTech("architecture") ? 0.5 : 1);
+  const wonderBuilt = (w) => !!(state.wonders[w.id] && state.wonders[w.id].built);
+  const wonderBonus = () => WONDERS.reduce((sum, w) => sum + (wonderBuilt(w) ? w.prod : 0), 0);
+  const knowledgeRate = () => Math.sqrt(population()) * KNOWLEDGE_RATE * (hasTech("ecole") ? 2 : 1);
   const freeShare = () => 1 - JOBS.reduce((sum, j) => sum + jobShare(j.id), 0);
   // Les bâtisseurs font baisser les prix.
   const unitPrice = (b, extra) =>
@@ -309,16 +347,17 @@
     sum + (syn.to === b.id ? syn.bonus * (state.owned[syn.from] || 0) : 0), 0);
   const buildingCps = (b) =>
     b.cps * ownedUpgrades().reduce((m, u) => (u.effect.building === b.id ? m * 2 : m), 1) * (1 + synergyBonus(b))
-    * Math.pow(LEVELS.mult, level(b) - 1);
+    * Math.pow(LEVELS.mult, level(b) - 1) * (b.id === "cocos" && hasTech("irrigation") ? 2 : 1);
   const popBonus = () => ownedUpgrades().reduce((sum, u) => sum + (u.effect.popBonus || 0), 0) * population();
   const perSecond = () => BUILDINGS.reduce((sum, b) => sum + buildingCps(b) * count(b), 0)
     * (1 + popBonus()) * (1 + jobEffect("pecheurs")) * (1 + satietyMult()) * (1 + achievementBonus())
-    * (1 + celebEffect("prod"));
+    * (1 + celebEffect("prod")) * (1 + wonderBonus()) * (hasTech("industrie") ? 1.25 : 1);
   const achievementBonus = () => ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length * ACHIEVEMENT_BONUS;
 
   // Nourriture
   const foodActive = () => (state.owned.pecheur || 0) > 0;
-  const foodNeed = () => (population() * FOOD.perHabitantPerMinute * (1 + celebEffect("food"))) / 60; // par seconde
+  const foodNeed = () => (population() * FOOD.perHabitantPerMinute * (1 + celebEffect("food"))
+    * (hasTech("conserves") ? 0.75 : 1)) / 60; // par seconde
   const satietyLevel = () => SATIETY_LEVELS.find((level) => state.satiety >= level.min);
   const satietyMult = () => (foodActive() ? satietyLevel().mult : 0);
 
@@ -327,14 +366,14 @@
   function resourceRate(r) {
     const b = buildingOf(r);
     return r.perSecond * count(b) * (buildingCps(b) / b.cps) * (1 + jobEffect("cueilleurs"))
-      * (r.id === "poisson" ? 1 + celebEffect("fish") : 1);
+      * (r.id === "poisson" ? (1 + celebEffect("fish")) * (hasTech("filets") ? 2 : 1) : 1);
   }
-  const storage = (r) => STORAGE.base + STORAGE.perBuilding * count(buildingOf(r));
+  const storage = (r) => (STORAGE.base + STORAGE.perBuilding * count(buildingOf(r))) * (hasTech("greniers") ? 2 : 1);
   const sellPrice = (r) => r.price * state.market[r.id].f * (1 + population() * DEMAND_PER_HABITANT)
     * (1 + jobEffect("marchands")) * (1 + celebEffect("sell"));
 
   const bankCapacity = () => Math.max(BANK.minCapacity, perSecond() * 3600 * BANK.capacityHours) * (1 + celebEffect("bank"));
-  const bankRatePerMinute = () => BANK.ratePerMinute * (1 + jobEffect("marchands"));
+  const bankRatePerMinute = () => BANK.ratePerMinute * (1 + jobEffect("marchands")) * (hasTech("comptabilite") ? 1.5 : 1);
 
   // Récolte et intérêts sur une durée donnée (aussi utilisé pour l’absence).
   function updateEconomy(seconds) {
@@ -342,6 +381,7 @@
       state.res[r.id] = Math.min(storage(r), state.res[r.id] + resourceRate(r) * seconds);
     });
     feedVillagers(seconds);
+    state.knowledge += knowledgeRate() * seconds;
     const capacity = bankCapacity();
     if (state.bank > 0 && state.bank < capacity) {
       const grown = Math.min(capacity, state.bank * Math.pow(1 + bankRatePerMinute(), seconds / 60));
@@ -704,7 +744,8 @@
   function renderScene() {
     const pop = population();
     const villagers = Math.min(MAX_SCENE_VILLAGERS, Math.round(Math.sqrt(pop) * 1.2));
-    const key = stageIndex() + "|" + BUILDINGS.map((b) => count(b) + ":" + level(b)).join(",") + "|" + villagers + "|" + state.celebs.join(",");
+    const key = stageIndex() + "|" + BUILDINGS.map((b) => count(b) + ":" + level(b)).join(",") + "|" + villagers + "|" + state.celebs.join(",")
+      + "|" + WONDERS.filter(wonderBuilt).length;
     if (key === sceneKey) return;
     sceneKey = key;
 
@@ -729,6 +770,8 @@
       const walk = `--dx:${(i % 2 ? 1 : -1) * (4 + (i % 3) * 3)};--dur:${3 + (i % 4)}s`;
       html.push(placeSprite("habitant", x, y, "villager", i, walk));
     }
+    // Les merveilles construites se dressent sur l’île.
+    WONDERS.filter(wonderBuilt).forEach((w) => html.push(placeSprite(w.sprite, w.place.x, w.place.y, "landmark")));
     // Les habitants célèbres se tiennent près du repère central, une étoile au-dessus de la tête.
     state.celebs.forEach((id, i) => {
       const celeb = CELEBRITIES.find((c) => c.id === id);
@@ -1025,7 +1068,7 @@
     });
     el.addEventListener("click", () => {
       boatOnScreen = false;
-      const gain = Math.max(50, perSecond() * 120 + clickValue() * 25) * (1 + celebEffect("boat"));
+      const gain = Math.max(50, perSecond() * 120 + clickValue() * 25) * (1 + celebEffect("boat")) * (hasTech("tourisme") ? 2 : 1);
       earn(gain, "evenements");
       state.stats.boats++;
       rewardAt(el, "+" + format(gain) + " " + COIN);
@@ -1038,7 +1081,8 @@
   function checkEvents(now) {
     if (!bottleOnScreen && now >= nextBottleAt) {
       spawnBottle();
-      nextBottleAt = now + randomBetween(BOTTLE.minDelay, BOTTLE.maxDelay) * 1000 * (1 + celebEffect("bottle"));
+      nextBottleAt = now + randomBetween(BOTTLE.minDelay, BOTTLE.maxDelay) * 1000 * (1 + celebEffect("bottle"))
+        * (hasTech("signaux") ? 0.7 : 1) * (WONDERS[0] && wonderBuilt(WONDERS[0]) ? 0.5 : 1);
     }
     if (!boatOnScreen && now >= nextBoatAt) {
       spawnBoat();
@@ -1067,7 +1111,7 @@
     const r = options[Math.floor(Math.random() * options.length)];
     // Une quantité qu’on peut réunir en 2 à 4 minutes de récolte, sans dépasser le stock maximum.
     const qty = Math.min(storage(r), Math.max(20, Math.round(resourceRate(r) * randomBetween(120, 240))));
-    const reward = qty * sellPrice(r) * randomBetween(ORDERS.minMult, ORDERS.maxMult);
+    const reward = qty * sellPrice(r) * randomBetween(ORDERS.minMult, ORDERS.maxMult) * (hasTech("diplomatie") ? 1.5 : 1);
     state.order = { res: r.id, qty, reward, expiresAt: Date.now() + ORDERS.duration * 1000 };
     toast(`${icon("bateau")} Un navire marchand commande ${format(qty)} ${r.plural} !`);
   }
@@ -1163,6 +1207,7 @@
     if (activeTab === "market") renderMarket();
     if (activeTab === "bank") renderBank();
     if (activeTab === "stats") renderStats();
+    if (activeTab === "projects") renderProjects();
   }
 
   // Une ligne de statistique : icône, nom, barre proportionnelle, valeur.
@@ -1205,6 +1250,8 @@
       ["Tours de roue", format(st.spins || 0)],
       ["Poissons dorés", format(st.goldFish || 0)],
       ["Expéditions réussies", format(st.expeditions || 0)],
+      ["Technologies", `${Object.keys(state.techs).length} / ${TECHS.length}`],
+      ["Merveilles", `${WONDERS.filter(wonderBuilt).length} / ${WONDERS.length}`],
     ];
     $("stats-records").innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
     renderAchievements();
@@ -1627,7 +1674,7 @@
     if (!ship || Date.now() < ship.returnAt) return;
     state.expedition = null;
     const route = ROUTES.find((r) => r.id === ship.route);
-    if (Math.random() < route.risk) {
+    if (Math.random() < route.risk * (hasTech("cartographie") ? 0.5 : 1)) {
       state.stats.shipwrecks = (state.stats.shipwrecks || 0) + 1;
       toast(`${icon("bateau")} Tempête sur la ${route.name.toLowerCase()} : la cargaison est perdue…`);
     } else {
@@ -1769,6 +1816,121 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 6 sexies. Projets : recherche et merveilles
+  // ---------------------------------------------------------------------------
+
+  const techName = (id) => TECHS.find((t) => t.id === id).name;
+
+  function buildTechs() {
+    $("techs").innerHTML = TECHS.map((t) => `
+      <div class="card tech" data-tech-row="${t.id}">
+        <span class="item-icon">${icon("livre")}</span>
+        <span class="item-text">
+          <span class="item-name">${t.name}</span>
+          <span class="item-effect">${t.info}</span>
+          <span class="item-info tech-needs"></span>
+        </span>
+        <button type="button" class="sell tech-buy" data-tech="${t.id}">${format(t.cost)}<span class="tech-unit">savoir</span></button>
+      </div>`).join("");
+  }
+
+  function renderProjects() {
+    $("knowledge").textContent = format(state.knowledge);
+    $("knowledge-rate").textContent = format(knowledgeRate(), true);
+    TECHS.forEach((t) => {
+      const row = document.querySelector(`[data-tech-row="${t.id}"]`);
+      const done = hasTech(t.id);
+      const missing = t.needs.filter((id) => !hasTech(id));
+      row.classList.toggle("done", done);
+      row.classList.toggle("locked", missing.length > 0);
+      row.querySelector(".tech-needs").textContent = done ? "Découverte" : missing.length ? "Il faut d’abord : " + missing.map(techName).join(", ") : "";
+      const button = row.querySelector(".tech-buy");
+      button.hidden = done;
+      button.disabled = missing.length > 0 || state.knowledge < t.cost;
+    });
+    renderWonders();
+  }
+
+  function onTechClick(event) {
+    const button = event.target.closest("[data-tech]");
+    if (!button || button.disabled) return;
+    const t = TECHS.find((x) => x.id === button.dataset.tech);
+    if (hasTech(t.id) || state.knowledge < t.cost || t.needs.some((id) => !hasTech(id))) return;
+    state.knowledge -= t.cost;
+    state.techs[t.id] = true;
+    toast(`${icon("livre")} Découverte : ${t.name} (${t.info})`);
+    render();
+  }
+
+  // Merveilles : on montre celles déjà construites, puis le chantier en cours.
+  const wonderProgress = (w) => state.wonders[w.id] || (state.wonders[w.id] = { built: false });
+  let wonderKey = "";
+  function renderWonders() {
+    const current = WONDERS.find((w) => !wonderBuilt(w));
+    // Reconstruit seulement si un apport change ou si un bouton « Donner » change d’état
+    // (sinon les boutons seraient recréés 10 fois par seconde et les appuis pourraient se perdre).
+    const key = WONDERS.map((w) => JSON.stringify(state.wonders[w.id] || {})).join("|") + "|" +
+      RESOURCES.map((r) => state.res[r.id] >= 1).join(",") + "|" + (state.coins >= 1);
+    if (key === wonderKey) return;
+    wonderKey = key;
+    const built = WONDERS.filter(wonderBuilt).map((w) => `
+      <div class="card wonder done">${icon(w.sprite, undefined, "px wonder-icon")}
+        <span class="item-text"><span class="item-name">${w.name}</span><span class="item-effect">${w.info}</span><span class="item-info">Construite</span></span>
+      </div>`).join("");
+    let site = "";
+    if (current) {
+      const progress = wonderProgress(current);
+      const parts = Object.entries(current.need).map(([key, total]) => {
+        const given = progress[key] || 0;
+        const isCoins = key === "coins";
+        const r = RESOURCES.find((x) => x.id === key);
+        const have = isCoins ? state.coins : state.res[key];
+        return `<div class="wonder-part">
+          ${isCoins ? icon("piece", undefined, "px coin-icon") : icon(key, undefined, "px part-icon")}
+          <span class="item-text"><span class="item-info">${isCoins ? "Pièces" : r.name} : ${format(given)} / ${format(total)}</span>
+            <span class="bar"><span class="bar-fill" style="width:${Math.min(100, (given / total) * 100)}%"></span></span></span>
+          <button type="button" class="refuse" data-give="${key}" ${given >= total || have < 1 ? "disabled" : ""}>Donner</button>
+        </div>`;
+      }).join("");
+      site = `<div class="card wonder">${icon(current.sprite, undefined, "px wonder-icon")}
+        <span class="item-text"><span class="item-name">${current.name}</span><span class="item-effect">${current.info}</span>
+          <span class="item-info">Apportez tout ce qu’il faut pour la construire.</span></span>
+        <div class="wonder-parts">${parts}</div>
+      </div>`;
+    } else {
+      site = `<p class="panel-intro">Toutes les merveilles sont construites. Bravo !</p>`;
+    }
+    $("wonders").innerHTML = built + site;
+  }
+
+  function onWonderClick(event) {
+    const button = event.target.closest("[data-give]");
+    if (!button || button.disabled) return;
+    const w = WONDERS.find((x) => !wonderBuilt(x));
+    if (!w) return;
+    const key = button.dataset.give;
+    const progress = wonderProgress(w);
+    const missing = w.need[key] - (progress[key] || 0);
+    // On donne tout ce qu’on a, sans dépasser ce qu’il manque.
+    if (key === "coins") {
+      const amount = Math.min(state.coins, missing);
+      state.coins -= amount;
+      progress.coins = (progress.coins || 0) + amount;
+    } else {
+      const amount = Math.min(Math.floor(state.res[key]), missing);
+      state.res[key] -= amount;
+      progress[key] = (progress[key] || 0) + amount;
+    }
+    if (Object.entries(w.need).every(([k, total]) => (progress[k] || 0) >= total)) {
+      progress.built = true;
+      toast(`${icon(w.sprite)} Merveille construite : ${w.name} ! ${w.info}`);
+      confetti();
+    }
+    wonderKey = "";
+    render();
+  }
+
+  // ---------------------------------------------------------------------------
   // 7. Sauvegarde
   // ---------------------------------------------------------------------------
 
@@ -1812,6 +1974,7 @@
   buildShop();
   buildPanels();
   buildAchievements();
+  buildTechs();
   drawWheel();
   load();
   render();
@@ -1841,6 +2004,8 @@
   $("fishing-close").addEventListener("click", closeFishing);
   $("expedition").addEventListener("click", onExpeditionClick);
   $("panel-jobs").addEventListener("click", onCelebClick);
+  $("techs").addEventListener("click", onTechClick);
+  $("wonders").addEventListener("click", onWonderClick);
   updateDayNight();
   setInterval(updateDayNight, 60000);
 
