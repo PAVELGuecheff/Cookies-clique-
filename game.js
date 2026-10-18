@@ -51,6 +51,7 @@
   });
   UPGRADES.sort((a, b) => a.cost - b.cost);
   const MAX_AUTO_BUYS_PER_SECOND = 20;
+  const MAX_UPGRADES_SHOWN = 6;
 
   const STAGES = [
     { pop: 0,      emoji: "🏝️", title: "Îlot désert" },
@@ -245,6 +246,12 @@
       toggle.hidden = !automation;
       toggle.setAttribute("aria-pressed", String(!!state.auto[b.id]));
     });
+    // Le prochain bâtiment pas encore découvert reste caché derrière un « ? ».
+    const nextLocked = BUILDINGS.find((b) => count(b) === 0 && state.totalEarned < b.cost / 2);
+    $("mystery").hidden = !nextLocked;
+    if (nextLocked) {
+      $("mystery-text").textContent = `Gagnez encore ${format(nextLocked.cost / 2 - state.totalEarned)} 🪙 pour le découvrir`;
+    }
     document.querySelectorAll("#buy-mode button").forEach((button) => {
       button.setAttribute("aria-pressed", String(button.dataset.qty === String(state.buyMode)));
     });
@@ -252,15 +259,16 @@
     $("pop-bonus").hidden = bonus === 0;
     $("pop-bonus").textContent = `🏛️ Mairie : +${format(bonus * 100, true)} % de production grâce aux habitants`;
 
-    let anyUpgrade = false;
+    // On ne montre que les améliorations disponibles les moins chères, pour garder la boutique lisible.
+    let shown = 0;
     UPGRADES.forEach((u) => {
       const el = document.querySelector(`[data-upgrade="${u.id}"]`);
-      const visible = !state.upgrades[u.id] && isUnlocked(u);
+      const visible = !state.upgrades[u.id] && isUnlocked(u) && shown < MAX_UPGRADES_SHOWN;
+      if (visible) shown++;
       el.hidden = !visible;
       el.disabled = state.coins < u.cost;
-      anyUpgrade = anyUpgrade || visible;
     });
-    $("upgrades-block").hidden = !anyUpgrade;
+    $("upgrades-block").hidden = shown === 0;
   }
 
   let toastTimer;
@@ -384,7 +392,32 @@
     const x = event.clientX || rect.left + rect.width / 2;
     const y = event.clientY || rect.top + rect.height / 2;
     floatText(x, y, "+" + format(value, true) + " 🪙");
+    coinBurst(x, y);
     render();
+  }
+
+  // Quelques pièces jaillissent de l’endroit touché (limitées pour rester fluide).
+  function coinBurst(x, y) {
+    if (document.querySelectorAll(".coin").length > 24) return;
+    for (let i = 0; i < 3; i++) {
+      const el = document.createElement("span");
+      el.className = "coin";
+      el.textContent = "🪙";
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 40 + Math.random() * 40;
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.style.setProperty("--tx", Math.cos(angle) * distance + "px");
+      el.style.setProperty("--ty", Math.sin(angle) * distance + "px");
+      el.addEventListener("animationend", () => el.remove());
+      document.body.appendChild(el);
+    }
+  }
+
+  // Le décor passe en mode nuit de 20 h à 7 h, à l’heure du joueur.
+  function updateDayNight() {
+    const hour = new Date().getHours();
+    document.documentElement.classList.toggle("night", hour >= 20 || hour < 7);
   }
 
   function buy(b, qty) {
@@ -611,6 +644,8 @@
   $("buy-mode").addEventListener("click", onBuyModeClick);
   setInterval(save, SAVE_EVERY_MS);
   setInterval(autoBuy, 1000);
+  updateDayNight();
+  setInterval(updateDayNight, 60000);
 
   let lastTick = performance.now();
   let lastRender = 0;
