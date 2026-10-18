@@ -116,6 +116,16 @@
     { id: "jobs",   name: "Métiers", unlockText: "à 10 habitants", unlocked: () => population() >= 10 },
     { id: "market", name: "Marché",  unlockText: "avec une cabane de pêcheur", unlocked: () => (state.owned.pecheur || 0) > 0 },
     { id: "bank",   name: "Coffre",  unlockText: "après 5 000 pièces gagnées", unlocked: () => state.totalEarned >= 5000 },
+    { id: "stats",  name: "Stats" },
+  ];
+
+  // Sources de pièces suivies dans l’onglet Stats.
+  const SOURCES = [
+    { id: "batiments",  name: "Bâtiments",             icon: "hutte" },
+    { id: "clics",      name: "Clics",                 icon: "piece" },
+    { id: "marche",     name: "Marché",                icon: "sac" },
+    { id: "evenements", name: "Bouteilles et bateaux", icon: "bouteille" },
+    { id: "coffre",     name: "Intérêts du coffre",    icon: "coffre" },
   ];
 
   // ---------------------------------------------------------------------------
@@ -133,6 +143,11 @@
       bank: 0,
       autoSell: { bois: { on: false, min: 1.2 }, poisson: { on: false, min: 1.2 }, noix: { on: false, min: 1.2 } },
       autoSellTotal: 0,
+      autoMode: "cheap", // l’intendant achète le moins cher ("cheap") ou le plus rentable ("best")
+      stats: {
+        sources: { batiments: 0, clics: 0, marche: 0, evenements: 0, coffre: 0 },
+        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, playTime: 0,
+      },
       tabsSeen: { build: true },
     };
   }
@@ -203,7 +218,9 @@
     });
     const capacity = bankCapacity();
     if (state.bank > 0 && state.bank < capacity) {
-      state.bank = Math.min(capacity, state.bank * Math.pow(1 + bankRatePerMinute(), seconds / 60));
+      const grown = Math.min(capacity, state.bank * Math.pow(1 + bankRatePerMinute(), seconds / 60));
+      state.stats.sources.coffre += grown - state.bank;
+      state.bank = grown;
     }
   }
 
@@ -218,6 +235,34 @@
       if (u.effect.clickFromProd) value += perSecond() * u.effect.clickFromProd;
     });
     return value * buffMult(buffs.click) * comboMult();
+  }
+
+  // Gain de production d’un achat : on l’essaie, on mesure, puis on annule (rien n’est acheté).
+  function productionGain(tryIt) {
+    const before = perSecond();
+    const undo = tryIt();
+    const after = perSecond();
+    undo();
+    return after - before;
+  }
+
+  // Temps (en secondes) pour qu’un achat soit remboursé par ce qu’il rapporte.
+  function buildingPayback(b, qty) {
+    const gain = productionGain(() => {
+      state.owned[b.id] = count(b) + qty;
+      return () => { state.owned[b.id] = count(b) - qty; };
+    });
+    return gain > 0 ? priceFor(b, qty) / gain : Infinity;
+  }
+
+  // Seules les améliorations qui augmentent la production ont un temps de remboursement.
+  function upgradePayback(u) {
+    if (!u.effect.building && !u.effect.popBonus) return Infinity;
+    const gain = productionGain(() => {
+      state.upgrades[u.id] = true;
+      return () => { delete state.upgrades[u.id]; };
+    });
+    return gain > 0 ? u.cost / gain : Infinity;
   }
 
   const hasAutomation = () => ownedUpgrades().some((u) => u.effect.auto);
@@ -238,9 +283,10 @@
     return i;
   }
 
-  function earn(amount) {
+  function earn(amount, source) {
     state.coins += amount;
     state.totalEarned += amount;
+    state.stats.sources[source || "batiments"] += amount;
   }
 
   // ---------------------------------------------------------------------------
@@ -270,11 +316,13 @@
     $("buildings").innerHTML = BUILDINGS.map((b) => `
       <div class="row" data-row="${b.id}" hidden>
         <button class="item" type="button" data-building="${b.id}">
+          <span class="best-badge" hidden>Meilleur achat</span>
           <span class="item-icon">${icon(b.id)}</span>
           <span class="item-text">
             <span class="item-name">${b.name}</span>
             <span class="item-info">+<span class="cps"></span> ${COIN}/s · +${b.pop} ${PEOPLE}</span>
             <span class="item-synergy" hidden></span>
+            <span class="payback"></span>
             <span class="item-price"><span class="cost"></span> ${COIN}<span class="qty"></span></span>
           </span>
           <span class="item-count"></span>
@@ -285,10 +333,12 @@
 
     $("upgrades").innerHTML = UPGRADES.map((u) => `
       <button class="item upgrade" type="button" data-upgrade="${u.id}" hidden>
+        <span class="best-badge" hidden>Meilleur achat</span>
         <span class="item-icon">${icon(u.icon)}${u.badge ? `<span class="badge">${u.badge}</span>` : ""}</span>
         <span class="item-text">
           <span class="item-name">${u.name}</span>
           <span class="item-info">${u.info}</span>
+          <span class="payback"></span>
           <span class="item-price">${format(u.cost)} ${COIN}</span>
         </span>
       </button>`).join("");
@@ -369,7 +419,47 @@
       el.disabled = state.coins < u.cost;
     });
     $("upgrades-block").hidden = shown === 0;
+    renderPaybacks();
+    $("auto-mode").hidden = !automation;
+    document.querySelectorAll("#auto-mode [data-mode]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.mode === state.autoMode));
+    });
     renderPanels();
+  }
+
+  // « Remboursé en 2 min 30 » sur chaque carte, et un badge sur l’achat le plus rentable.
+  function renderPaybacks() {
+    const cards = [];
+    BUILDINGS.forEach((b) => {
+      const el = document.querySelector(`[data-building="${b.id}"]`);
+      if (!el.closest(".row").hidden) cards.push({ el, time: buildingPayback(b, buyQty(b)) });
+    });
+    UPGRADES.forEach((u) => {
+      const el = document.querySelector(`[data-upgrade="${u.id}"]`);
+      if (!el.hidden) cards.push({ el, time: upgradePayback(u) });
+    });
+    const best = cards.reduce((a, c) => (c.time < (a ? a.time : Infinity) ? c : a), null);
+    document.querySelectorAll(".item .payback").forEach((p) => { p.textContent = ""; });
+    document.querySelectorAll(".best-badge").forEach((badge) => { badge.hidden = true; });
+    cards.forEach((c) => {
+      if (c.time === Infinity) return;
+      c.el.querySelector(".payback").textContent = "Remboursé en " + formatDuration(c.time);
+      c.el.querySelector(".best-badge").hidden = c !== best;
+    });
+  }
+
+  function formatDuration(seconds) {
+    if (seconds < 60) return Math.ceil(seconds) + " s";
+    if (seconds < 3600) {
+      const m = Math.floor(seconds / 60);
+      const rest = Math.floor(seconds % 60);
+      return m + " min" + (m < 10 && rest ? " " + String(rest).padStart(2, "0") : "");
+    }
+    if (seconds < 86400) {
+      const h = Math.floor(seconds / 3600);
+      return h + " h " + String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+    }
+    return format(seconds / 86400) + " j";
   }
 
   // « Synergie +15 % · Booste [cabane] +5 % »
@@ -529,7 +619,9 @@
     combo = now - lastClickAt <= COMBO_WINDOW_MS ? combo + 1 : 0;
     lastClickAt = now;
     const value = clickValue();
-    earn(value);
+    earn(value, "clics");
+    state.stats.clicks++;
+    state.stats.bestCombo = Math.max(state.stats.bestCombo, combo);
     // Au clavier, il n’y a pas de position de souris : on vise le centre de l’île.
     const rect = $("island").getBoundingClientRect();
     const x = event.clientX || rect.left + rect.width / 2;
@@ -573,24 +665,33 @@
     return true;
   }
 
-  // L’intendant achète, une fois par seconde, le bâtiment automatique le moins cher tant qu’il le peut.
+  // L’intendant passe une fois par seconde. Parmi les bâtiments en mode Auto, il choisit
+  // le moins cher, ou le plus rentable (il attend alors d’avoir assez de pièces pour celui-là).
   function autoBuy() {
     if (!hasAutomation()) return;
     const chosen = BUILDINGS.filter((b) => state.auto[b.id]);
+    const score = state.autoMode === "best" ? (b) => buildingPayback(b, 1) : (b) => unitPrice(b, 0);
     let newcomers = 0;
     for (let n = 0; n < MAX_AUTO_BUYS_PER_SECOND && chosen.length; n++) {
-      const cheapest = chosen.reduce((best, b) => (unitPrice(b, 0) < unitPrice(best, 0) ? b : best));
-      const cost = unitPrice(cheapest, 0);
+      const pick = chosen.reduce((best, b) => (score(b) < score(best) ? b : best));
+      const cost = unitPrice(pick, 0);
       if (state.coins < cost) break;
       state.coins -= cost;
-      state.owned[cheapest.id] = count(cheapest) + 1;
-      newcomers += cheapest.pop;
+      state.owned[pick.id] = count(pick) + 1;
+      newcomers += pick.pop;
     }
     if (newcomers > 0) {
       welcome(newcomers);
       checkStage();
       render();
     }
+  }
+
+  function onAutoModeClick(event) {
+    const button = event.target.closest("[data-mode]");
+    if (!button) return;
+    state.autoMode = button.dataset.mode;
+    render();
   }
 
   function onBuyModeClick(event) {
@@ -685,10 +786,11 @@
   }
 
   function openBottle(el) {
+    state.stats.bottles++;
     const roll = Math.random();
     if (roll < 0.5) {
       const gain = Math.max(clickValue() * 30, Math.min(state.coins * 0.15, perSecond() * 900));
-      earn(gain);
+      earn(gain, "evenements");
       rewardAt(el, "+" + format(gain) + " " + COIN);
       toast(`${icon("bouteille")} Un trésor dans la bouteille : +${format(gain)} ${COIN}`);
     } else if (roll < 0.8) {
@@ -718,7 +820,8 @@
     el.addEventListener("click", () => {
       boatOnScreen = false;
       const gain = Math.max(50, perSecond() * 120 + clickValue() * 25);
-      earn(gain);
+      earn(gain, "evenements");
+      state.stats.boats++;
       rewardAt(el, "+" + format(gain) + " " + COIN);
       toast(`${icon("bateau")} Des touristes débarquent et dépensent +${format(gain)} ${COIN}`);
       render();
@@ -792,7 +895,7 @@
     TABS.forEach((t) => {
       const button = document.querySelector(`[data-tab="${t.id}"]`);
       const open = !t.unlocked || t.unlocked();
-      if (open && !state.tabsSeen[t.id]) {
+      if (open && t.unlocked && !state.tabsSeen[t.id]) { // les onglets ouverts dès le départ ne sont pas annoncés
         state.tabsSeen[t.id] = true;
         button.classList.add("new");
         toast(`Nouvel onglet débloqué : ${t.name} !`);
@@ -809,6 +912,43 @@
     if (activeTab === "jobs") renderJobs();
     if (activeTab === "market") renderMarket();
     if (activeTab === "bank") renderBank();
+    if (activeTab === "stats") renderStats();
+  }
+
+  // Une ligne de statistique : icône, nom, barre proportionnelle, valeur.
+  const statRow = (iconName, label, value, share) => `
+    <div class="stat-row">
+      ${icon(iconName)}
+      <span class="stat-row-text"><span>${label}</span><span class="bar"><span class="bar-fill" style="width:${Math.min(100, share * 100)}%"></span></span></span>
+      <span class="stat-row-value">${value}</span>
+    </div>`;
+
+  function renderStats() {
+    const st = state.stats;
+    const tracked = SOURCES.reduce((sum, src) => sum + st.sources[src.id], 0);
+    // Parties commencées avant le suivi : la différence est affichée à part.
+    const before = Math.max(0, state.totalEarned - (tracked - st.sources.coffre));
+    const total = tracked + before || 1;
+    const rows = SOURCES.map((src) => statRow(src.icon, src.name, format(st.sources[src.id]), st.sources[src.id] / total));
+    if (before >= 1) rows.push(statRow("puits", "Avant le suivi", format(before), before / total));
+    $("stats-sources").innerHTML = rows.join("");
+
+    // Part de chaque bâtiment dans la production actuelle (les bonus globaux s’appliquent à tous pareil).
+    const raw = BUILDINGS.reduce((sum, b) => sum + buildingCps(b) * count(b), 0) || 1;
+    $("stats-buildings").innerHTML = BUILDINGS.filter((b) => count(b) > 0).map((b) => {
+      const share = (buildingCps(b) * count(b)) / raw;
+      return statRow(b.id, b.name, format(perSecond() * share, true) + "/s", share);
+    }).join("") || `<p class="panel-intro">Aucun bâtiment pour l’instant.</p>`;
+
+    const records = [
+      ["Total gagné", format(state.totalEarned)],
+      ["Temps de jeu", formatDuration(st.playTime)],
+      ["Clics sur l’île", format(st.clicks)],
+      ["Meilleur combo", "×" + format(1 + Math.min(st.bestCombo, COMBO_MAX) / COMBO_MAX, true)],
+      ["Bouteilles attrapées", format(st.bottles)],
+      ["Bateaux accueillis", format(st.boats)],
+    ];
+    $("stats-records").innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
   }
 
   function renderJobs() {
@@ -908,7 +1048,7 @@
     if (qty < 1) return 0;
     const gain = qty * sellPrice(r) * rate;
     state.res[r.id] -= qty;
-    earn(gain);
+    earn(gain, "marche");
     return gain;
   }
 
@@ -1020,6 +1160,7 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
   window.addEventListener("pagehide", save);
   $("buy-mode").addEventListener("click", onBuyModeClick);
+  $("auto-mode").addEventListener("click", onAutoModeClick);
   $("tabs").addEventListener("click", onTabClick);
   $("jobs").addEventListener("click", onJobClick);
   $("market").addEventListener("click", onSellClick);
@@ -1039,6 +1180,7 @@
     lastTick = now;
     earn((seconds > 1 ? perSecond() : productionRate()) * seconds);
     updateEconomy(seconds);
+    if (seconds <= 1) state.stats.playTime += seconds; // seulement le temps passé sur la page
     checkEvents(performance.now());
     if (now - lastRender > 100) { // 10 rafraîchissements par seconde suffisent
       lastRender = now;

@@ -61,6 +61,13 @@
           </div>
         </div>
         <p class="pop-bonus" id="pop-bonus" hidden></p>
+        <div class="auto-mode" id="auto-mode" hidden>
+          <span>Intendant :</span>
+          <div class="buy-mode" role="group" aria-label="Choix de l’intendant">
+            <button type="button" data-mode="cheap" aria-pressed="true">Le moins cher</button>
+            <button type="button" data-mode="best" aria-pressed="false">Le plus rentable</button>
+          </div>
+        </div>
         <div class="buildings" id="buildings"></div>
         <div class="mystery" id="mystery" hidden>
           <span class="mystery-icon" aria-hidden="true">?</span>
@@ -103,6 +110,16 @@
           <button type="button" data-bank="1">Tout déposer</button>
           <button type="button" data-bank="out" class="withdraw">Tout retirer</button>
         </div>
+      </div>
+
+      <div class="panel" id="panel-stats" hidden>
+        <h2>Statistiques</h2>
+        <p class="panel-intro">D’où viennent vos pièces depuis le début de la partie.</p>
+        <div class="stat-list" id="stats-sources"></div>
+        <h3>Production actuelle</h3>
+        <div class="stat-list" id="stats-buildings"></div>
+        <h3>Records</h3>
+        <dl class="records" id="stats-records"></dl>
       </div>
 
       <button class="reset" id="reset" type="button">Recommencer la partie</button>

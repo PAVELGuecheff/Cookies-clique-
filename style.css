@@ -695,3 +695,48 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .auto-sell-toggle[aria-pressed="true"] .px { opacity: 1; animation: hop 1s steps(2) infinite; }
 .auto-sell-min { color: var(--ink); }
 .auto-sell button:active { transform: translateY(3px); box-shadow: var(--outline), 0 1px var(--ink); }
+
+/* Badge « Meilleur achat » et temps de remboursement */
+.item { position: relative; }
+.best-badge {
+  position: absolute;
+  top: -12px;
+  right: 10px;
+  z-index: 1;
+  padding: 0 6px;
+  background: var(--gold);
+  box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink);
+  color: var(--ink);
+  font-size: .8rem;
+  line-height: 1.3;
+  animation: hop 1s steps(2) infinite;
+}
+.payback { font-size: .8rem; color: var(--muted); }
+.payback:empty { display: none; }
+
+/* Choix de l’intendant */
+.auto-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 3px 20px; }
+.auto-mode .buy-mode button { min-width: 0; padding: 4px 10px; }
+
+/* Onglets : 5 onglets sur deux lignes au téléphone */
+@media (max-width: 480px) {
+  .tabs { grid-template-columns: repeat(6, 1fr); row-gap: 14px; }
+  .tabs button { grid-column: span 2; }
+  .tabs button:nth-child(n + 4) { grid-column: span 3; }
+}
+@media (min-width: 481px) {
+  .tabs { grid-template-columns: repeat(5, 1fr); }
+  .tabs button { font-size: .85rem; }
+}
+
+/* Statistiques */
+.shop h3 { margin: 22px 0 10px; font-size: 1.15rem; font-weight: 400; }
+.stat-list { display: flex; flex-direction: column; gap: 10px; }
+.stat-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.stat-row .px { width: 32px; }
+.stat-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: .95rem; }
+.stat-row-value { font-size: 1rem; white-space: nowrap; }
+.records { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; margin: 0; }
+.records div { padding: 6px 10px 8px; background: var(--paper); box-shadow: var(--outline); }
+.records dt { font-size: .8rem; color: var(--muted); }
+.records dd { margin: 0; font-size: 1.25rem; }

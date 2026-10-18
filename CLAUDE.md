@@ -13,7 +13,10 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
   Les données d’équilibrage sont en haut : `BUILDINGS`, `UPGRADES` (+ `BUILDING_UPGRADES`), `STAGES`,
   les réglages des événements (`BOTTLE`, `BOAT`, `FRENZY`, `GOLD_CLICK`) et de l’économie
   (`SYNERGIES`, `JOBS`, `RESOURCES`, `MARKET`, `BANK`, `TABS`).
-- La boutique a des onglets : Construire, Métiers, Marché, Coffre (débloqués au fil de la partie).
+- La boutique a des onglets : Construire, Métiers, Marché, Coffre (débloqués au fil de la partie), Stats.
+- Rentabilité : `buildingPayback()` / `upgradePayback()` essaient l’achat, mesurent le gain de `perSecond()` puis annulent.
+  Elles servent au badge « Meilleur achat » et à l’intendant en mode « le plus rentable ».
+- `earn(montant, source)` : la source (`batiments`, `clics`, `marche`, `evenements`) alimente l’onglet Stats.
 
 ## Technique
 - HTML/CSS/JS sans framework ni npm.
