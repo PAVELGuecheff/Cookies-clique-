@@ -187,9 +187,29 @@
         <p class="panel-intro">Vos habitants accumulent du savoir. Plus l’île est peuplée, plus il arrive vite. Dépensez-le en technologies.</p>
         <p class="pop-bonus knowledge"><img class="px" data-sprite="livre" alt=""> Savoir : <strong id="knowledge">0</strong> (+<span id="knowledge-rate"></span>/s)</p>
         <div class="cards" id="techs"></div>
+        <h2 class="wonders-title">Archipel</h2>
+        <p class="panel-intro">Achetez une nouvelle île, plus grande et plus futuriste. Vous repartez de zéro, mais sa production est multipliée pour toujours. Vous gardez vos succès et vos statistiques.</p>
+        <div class="card archipelago">
+          <span class="item-text" id="island-here"></span>
+          <div class="island-next" id="island-next">
+            <canvas class="island-preview" id="island-preview"></canvas>
+            <span class="item-text">
+              <span class="item-name">Prochaine île : <span id="island-next-name"></span></span>
+              <span class="item-info" id="island-next-desc"></span>
+            </span>
+            <button type="button" class="sell buy-island" id="buy-island"></button>
+          </div>
+        </div>
+
         <h2 class="wonders-title">Merveilles</h2>
         <p class="panel-intro">D’immenses chantiers, construits l’un après l’autre. Donnez vos ressources et vos pièces petit à petit.</p>
         <div class="cards" id="wonders"></div>
+      </div>
+
+      <div class="panel" id="panel-workshop" hidden>
+        <h2>Atelier</h2>
+        <p class="panel-intro">Allumez les machines : elles transforment vos ressources en produits qui valent bien plus. De nouvelles recettes arrivent avec chaque époque.</p>
+        <div class="cards" id="recipes"></div>
       </div>
 
       <div class="panel" id="panel-stats" hidden>

@@ -121,6 +121,10 @@
     { id: "merveille",  name: "Merveille du monde",   desc: "Construire une merveille",              test: () => WONDERS.some((w) => wonderBuilt(w)) },
     { id: "trader",     name: "Loup de la Bourse",    desc: "Vendre des actions avec +50\u00a0% de bénéfice", test: () => (state.stats.bestTrade || 0) >= 0.5 },
     { id: "jackpot",    name: "Jackpot",              desc: "Aligner trois étoiles",                 test: () => (state.stats.jackpots || 0) >= 1 },
+    { id: "artisan",    name: "Artisan",              desc: "Fabriquer 100 produits à l’atelier",    test: () => (state.stats.crafted || 0) >= 100 },
+    { id: "futur",      name: "Logistique du futur",  desc: "Fabriquer un drone de livraison",       test: () => (state.stats.drones || 0) >= 1 },
+    { id: "explorateur", name: "Explorateur",         desc: "Acheter une nouvelle île",              test: () => (state.island || 0) >= 1 },
+    { id: "archipel",   name: "Maître de l’archipel", desc: "Atteindre l’île flottante",             test: () => (state.island || 0) >= ARCHIPELAGO.length - 1 },
     { id: "chance",     name: "Chanceux",             desc: "Tourner la roue 7 fois",                test: () => (state.stats.spins || 0) >= 7 },
   ];
 
@@ -186,11 +190,11 @@
   // Merveilles : d’énormes chantiers, construits l’un après l’autre, payés en ressources et en pièces.
   const WONDERS = [
     { id: "phare",  sprite: "phare",  name: "Phare géant",     info: "Production +25\u00a0% et bouteilles 2 fois plus fréquentes",
-      need: { bois: 3000, coins: 2e6 }, prod: 0.25, place: { x: 10, y: 64 } },
+      need: { bois: 3000, coins: 2e6 }, prod: 0.25, place: { dx: -46, dy: 6 } },
     { id: "totem",  sprite: "totem",  name: "Grand totem",     info: "Production +50\u00a0%",
-      need: { bois: 5000, noix: 5000, coins: 5e7 }, prod: 0.5, place: { x: 101, y: 64 } },
+      need: { bois: 5000, noix: 5000, coins: 5e7 }, prod: 0.5, place: { dx: 45, dy: 6 } },
     { id: "volcan", sprite: "volcan", name: "Volcan aménagé",  info: "Production ×2",
-      need: { bois: 20000, poisson: 20000, noix: 20000, coins: 5e9 }, prod: 1, place: { x: 30, y: 46 } },
+      need: { bois: 20000, poisson: 20000, noix: 20000, coins: 5e9 }, prod: 1, place: { dx: -26, dy: -12 } },
   ];
 
   // Bourse : 4 compagnies dont le cours (un indice autour de 1) bouge toutes les 5 secondes.
@@ -225,6 +229,27 @@
   ];
   const BETS = [0.01, 0.05, 0.1];          // part des pièces misée à la machine à sous
   const DOUBLE = { chance: 0.48, bets: [0.1, 0.25, 0.5] }; // double ou rien
+
+  // Atelier : chaque machine transforme des ressources (ou d’autres produits) en un produit qui vaut plus.
+  // Valeur d’un produit = valeur de ce qu’il consomme × mult. era = époque où la recette se débloque.
+  const RECIPES = [
+    { id: "barque", name: "Barque",             icon: "pirogue", inputs: { bois: 10 },             seconds: 6,  mult: 3, era: 2 },
+    { id: "huile",  name: "Huile de coco",      icon: "huile",   inputs: { noix: 5 },              seconds: 8,  mult: 3, era: 2 },
+    { id: "fume",   name: "Poisson fumé",       icon: "caisse",  inputs: { poisson: 3, bois: 1 },  seconds: 10, mult: 4, era: 2 },
+    { id: "moteur", name: "Bateau à moteur",    icon: "moteur",  inputs: { barque: 3, huile: 2 },  seconds: 20, mult: 3, era: 3 },
+    { id: "drone",  name: "Drone de livraison", icon: "drone",   inputs: { moteur: 2, fume: 5 },   seconds: 40, mult: 4, era: 4 },
+  ];
+  const GOODS_CAP = 100;
+
+  // Archipel : on peut acheter une nouvelle île, plus grande et plus futuriste. On repart de zéro,
+  // mais toute la production de la nouvelle île est multipliée par mult, et son époque de départ est minEra.
+  const ARCHIPELAGO = [
+    { name: "Îlot des Palmes",  mult: 1,  minEra: 0, cost: 0,    desc: "Une petite île tropicale" },
+    { name: "Île aux Récifs",   mult: 2,  minEra: 1, cost: 1e7,  desc: "Une île entourée de coraux" },
+    { name: "Atoll de Néon",    mult: 4,  minEra: 2, cost: 1e9,  desc: "Un atoll aux rivages lumineux" },
+    { name: "Île artificielle", mult: 8,  minEra: 3, cost: 1e11, desc: "Une plateforme de métal construite en pleine mer" },
+    { name: "Île flottante",    mult: 16, minEra: 4, cost: 1e13, desc: "Une île qui lévite au-dessus des nuages" },
+  ];
 
   // Niveaux de bâtiment : à partir de 10 exemplaires, on améliore tout un type (niveau 1 à 5).
   // Chaque niveau multiplie la production de ce type par 1,5. Prix = prix de départ × costMult.
@@ -273,7 +298,8 @@
     { id: "jobs",   name: "Métiers", unlockText: "à 10 habitants", unlocked: () => population() >= 10 },
     { id: "market", name: "Marché",  unlockText: "avec une cabane de pêcheur", unlocked: () => (state.owned.pecheur || 0) > 0 },
     { id: "bank",   name: "Banque",  unlockText: "après 5 000 pièces gagnées", unlocked: () => state.totalEarned >= 5000 },
-    { id: "projects", name: "Projets", unlockText: "à 100 habitants", unlocked: () => population() >= 100 },
+    { id: "projects", name: "Projets", unlockText: "à 100 habitants", unlocked: () => population() >= 100 || state.island > 0 },
+    { id: "workshop", name: "Atelier", unlockText: "à l’Âge de pierre (1 000 habitants)", unlocked: () => era() >= 2 },
     { id: "stats",  name: "Stats" },
   ];
 
@@ -289,6 +315,7 @@
     { id: "coffre",     name: "Intérêts du coffre",    icon: "coffre" },
     { id: "bourse",     name: "Bourse (bénéfices)",    icon: "hausse" },
     { id: "casino",     name: "Jeux de hasard (gains)", icon: "etoile" },
+    { id: "atelier",    name: "Atelier",               icon: "caisse" },
   ];
 
   // ---------------------------------------------------------------------------
@@ -320,6 +347,11 @@
       knowledge: 0,   // points de savoir
       techs: {},      // technologies découvertes
       wonders: {},    // apports à chaque merveille : { phare: { bois: 1200, coins: 5e5, built: false } }
+      workshop: {     // Atelier : machines allumées, avancement du produit en cours et produits en stock
+        on: { barque: false, huile: false, fume: false, moteur: false, drone: false },
+        progress: { barque: 0, huile: 0, fume: 0, moteur: 0, drone: 0 },
+        goods: { barque: 0, huile: 0, fume: 0, moteur: 0, drone: 0 },
+      },
       stocks: {       // Bourse : indice, historique, actions possédées et prix payé par compagnie
         unit: 0, idx: { peche: 1, coco: 1, iles: 1, tour: 1 }, hist: { peche: [], coco: [], iles: [], tour: [] },
         shares: { peche: 0, coco: 0, iles: 0, tour: 0 }, paid: { peche: 0, coco: 0, iles: 0, tour: 0 }, news: "",
@@ -332,6 +364,7 @@
         clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0, superFrenzies: 0, spins: 0, goldFish: 0, expeditions: 0, shipwrecks: 0, celebs: 0,
       },
       tabsSeen: { build: true },
+      island: 0,      // numéro de l’île dans l’archipel
     };
   }
   let state = newState();
@@ -392,7 +425,8 @@
   const popBonus = () => ownedUpgrades().reduce((sum, u) => sum + (u.effect.popBonus || 0), 0) * population();
   const perSecond = () => BUILDINGS.reduce((sum, b) => sum + buildingCps(b) * count(b), 0)
     * (1 + popBonus()) * (1 + jobEffect("pecheurs")) * (1 + satietyMult()) * (1 + achievementBonus())
-    * (1 + celebEffect("prod")) * (1 + wonderBonus()) * (hasTech("industrie") ? 1.25 : 1);
+    * (1 + celebEffect("prod")) * (1 + wonderBonus()) * (hasTech("industrie") ? 1.25 : 1) * currentIsland().mult;
+  const currentIsland = () => ARCHIPELAGO[state.island || 0];
   const achievementBonus = () => ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length * ACHIEVEMENT_BONUS;
 
   // Nourriture
@@ -423,6 +457,7 @@
     });
     feedVillagers(seconds);
     state.knowledge += knowledgeRate() * seconds;
+    runWorkshop(seconds);
     const capacity = bankCapacity();
     if (state.bank > 0 && state.bank < capacity) {
       const grown = Math.min(capacity, state.bank * Math.pow(1 + bankRatePerMinute(), seconds / 60));
@@ -504,7 +539,8 @@
 
   // Époque de l’île : suit les paliers (village = âge du bois, bourg = pierre, ville = industriel, nation = futur).
   const ERA_BY_STAGE = [0, 0, 1, 2, 3, 4];
-  const era = () => ERA_BY_STAGE[stageIndex()];
+  // Une île plus futuriste démarre directement à une époque plus avancée.
+  const era = () => Math.max(ERA_BY_STAGE[stageIndex()], currentIsland().minEra);
 
   // Capitalisation : tout ce que vaut l’île (pièces, coffre, actions et bâtiments construits).
   function capitalisation() {
@@ -513,6 +549,46 @@
   }
   // Nombre de tours au fond de l’île : une de plus à chaque fois que la capitalisation est multipliée par 3 environ.
   const towerCount = () => (era() < 2 ? 0 : Math.max(2, Math.min(14, Math.floor(Math.log10(Math.max(1, capitalisation())) * 2) - 8)));
+
+  // ---- Atelier ----
+  const isGood = (id) => RECIPES.some((r) => r.id === id);
+  const stockOf = (id) => (isGood(id) ? state.workshop.goods[id] : state.res[id]);
+  const takeStock = (id, qty) => { if (isGood(id)) state.workshop.goods[id] -= qty; else state.res[id] -= qty; };
+  const goodsCap = () => GOODS_CAP * (hasTech("greniers") ? 2 : 1);
+  // Les bâtisseurs font tourner les machines plus vite (jusqu’à 30 % plus vite).
+  const recipeSeconds = (r) => r.seconds * (1 + jobEffect("batisseurs"));
+  // Valeur de base d’une ressource ou d’un produit (sans les variations du marché).
+  function baseValue(id) {
+    const res = RESOURCES.find((x) => x.id === id);
+    if (res) return res.price;
+    const r = RECIPES.find((x) => x.id === id);
+    return Object.entries(r.inputs).reduce((sum, [input, qty]) => sum + baseValue(input) * qty, 0) * r.mult;
+  }
+  const goodPrice = (r) => baseValue(r.id) * (1 + population() * DEMAND_PER_HABITANT)
+    * (1 + jobEffect("marchands")) * (1 + celebEffect("sell"));
+
+  // Les machines allumées consomment et fabriquent (aussi pendant l’absence, tant qu’il y a de quoi).
+  function runWorkshop(seconds) {
+    if (!state.workshop) return;
+    RECIPES.forEach((r) => {
+      if (!state.workshop.on[r.id] || era() < r.era) return;
+      state.workshop.progress[r.id] += seconds / recipeSeconds(r);
+      let made = 0;
+      while (state.workshop.progress[r.id] >= 1 && made < 10000) {
+        const enough = Object.entries(r.inputs).every(([id, qty]) => stockOf(id) >= qty);
+        if (!enough || state.workshop.goods[r.id] >= goodsCap()) {
+          state.workshop.progress[r.id] = Math.min(state.workshop.progress[r.id], 1); // en attente
+          break;
+        }
+        Object.entries(r.inputs).forEach(([id, qty]) => takeStock(id, qty));
+        state.workshop.goods[r.id]++;
+        state.workshop.progress[r.id] -= 1;
+        made++;
+      }
+      state.stats.crafted = (state.stats.crafted || 0) + made;
+      if (r.id === "drone") state.stats.drones = (state.stats.drones || 0) + made;
+    });
+  }
 
   function stageIndex() {
     const pop = population();
@@ -703,7 +779,7 @@
     }
     const old = capitalHistory[0].value;
     const trend = value > old * 1.001 ? "hausse" : value < old * 0.999 ? "baisse" : "";
-    const html = `${art.ERAS[era()].name} · Capitalisation <strong>${format(value)}</strong> ${COIN}` +
+    const html = `${currentIsland().name} · ${art.ERAS[era()].name} · Capitalisation <strong>${format(value)}</strong> ${COIN}` +
       (trend ? ` ${icon(trend, undefined, "px trend-icon")}` : "");
     if ($("era").dataset.key !== html) {
       $("era").dataset.key = html;
@@ -790,17 +866,30 @@
   // ---------------------------------------------------------------------------
 
   const ISLAND = art.ISLAND;
-  const SLOTS = art.buildingSlots();
-  const MAX_SCENE_BUILDINGS = Math.min(16, SLOTS.length);
+  let SLOTS = art.buildingSlots();
+  let MAX_SCENE_BUILDINGS = Math.min(16, SLOTS.length);
+
+  // Met en place l’île actuelle de l’archipel : taille, emplacements des bâtiments, dessin.
+  function applyIsland() {
+    art.setIsland(state.island || 0);
+    SLOTS = art.buildingSlots();
+    MAX_SCENE_BUILDINGS = Math.min(16 + (state.island || 0) * 4, SLOTS.length);
+    $("island").classList.toggle("floating", ISLAND.theme === "flottante");
+    drawnIsland = "";
+    sceneKey = "";
+    sizeIsland();
+  }
   const MAX_SCENE_VILLAGERS = 10;
 
-  // Taille de l’île : un nombre entier de pixels écran par pixel dessiné, pour des pixels bien nets.
+  // Taille de l’île à l’écran : chaque nouvelle île de l’archipel occupe plus de place que la précédente
+  // (de 82 % à 100 % de la largeur disponible). --s = taille d’un pixel dessiné, pour les animations.
   function sizeIsland() {
-    const available = Math.min($("island-zone").clientWidth, 600);
-    const scale = Math.max(2, Math.floor(available / ISLAND.w));
+    const available = Math.min($("island-zone").clientWidth, 680);
+    const width = Math.floor(available * (0.82 + 0.045 * (state.island || 0)));
+    const scale = width / ISLAND.w;
     const island = $("island");
-    island.style.width = ISLAND.w * scale + "px";
-    island.style.height = ISLAND.h * scale + "px";
+    island.style.width = width + "px";
+    island.style.height = Math.round(ISLAND.h * scale) + "px";
     island.style.setProperty("--s", scale);
   }
 
@@ -826,7 +915,7 @@
     const islandKey = era() + "|" + towerCount() + "|" + night;
     if (islandKey !== drawnIsland) {
       drawnIsland = islandKey;
-      art.drawIsland($("island-canvas"), { era: era(), towers: towerCount(), night });
+      art.drawIsland($("island-canvas"), { era: era(), towers: towerCount() + (state.island || 0) * 2, night });
     }
     const key = stageIndex() + "|" + BUILDINGS.map((b) => count(b) + ":" + level(b)).join(",") + "|" + villagers + "|" + state.celebs.join(",")
       + "|" + WONDERS.filter(wonderBuilt).length;
@@ -856,7 +945,7 @@
       html.push(placeSprite("habitant", x, y, "villager", i, walk));
     }
     // Les merveilles construites se dressent sur l’île.
-    WONDERS.filter(wonderBuilt).forEach((w) => html.push(placeSprite(w.sprite, w.place.x, w.place.y, "landmark")));
+    WONDERS.filter(wonderBuilt).forEach((w) => html.push(placeSprite(w.sprite, ISLAND.cx + w.place.dx, ISLAND.cy + w.place.dy, "landmark")));
     // Les habitants célèbres se tiennent près du repère central, une étoile au-dessus de la tête.
     state.celebs.forEach((id, i) => {
       const celeb = CELEBRITIES.find((c) => c.id === id);
@@ -1040,6 +1129,59 @@
     render();
   }
 
+  // ---- Archipel : acheter une nouvelle île ----
+  const nextIsland = () => ARCHIPELAGO[(state.island || 0) + 1];
+
+  // On repart de zéro sur la nouvelle île ; on garde les succès, les statistiques et la roue du jour.
+  let islandTimer = null;
+  function onBuyIsland() {
+    const next = nextIsland();
+    if (!next || state.coins < next.cost) return;
+    const button = $("buy-island");
+    if (!islandTimer) {
+      button.textContent = "Sûr ? Toucher encore pour partir";
+      islandTimer = setTimeout(() => { islandTimer = null; renderArchipelago(true); }, 4000);
+      return;
+    }
+    clearTimeout(islandTimer);
+    islandTimer = null;
+    const keep = { achievements: state.achievements, stats: state.stats, lastSpin: state.lastSpin, tabsSeen: state.tabsSeen };
+    const index = (state.island || 0) + 1;
+    state = Object.assign(newState(), keep, { island: index });
+    state.stats.islands = index;
+    applyIsland();
+    activeTab = "build";
+    archipelagoKey = "";
+    save();
+    render();
+    confetti();
+    toast(`${icon("bateau")} Bienvenue sur ${next.name} ! Production ×${next.mult} pour toujours`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  let archipelagoKey = "";
+  function renderArchipelago(force) {
+    const next = nextIsland();
+    const key = (state.island || 0) + "|" + (next ? state.coins >= next.cost : "fin");
+    if (!force && key === archipelagoKey) return;
+    archipelagoKey = key;
+    const here = currentIsland();
+    $("island-here").innerHTML = `<span class="item-name">Vous êtes sur : ${here.name}</span>
+      <span class="item-effect">Production ×${here.mult} · époque de départ : ${art.ERAS[here.minEra].name}</span>`;
+    $("island-next").hidden = !next;
+    if (!next) {
+      $("island-here").innerHTML += `<span class="item-info">Vous avez conquis tout l’archipel. Bravo !</span>`;
+      return;
+    }
+    const shape = art.islandShape((state.island || 0) + 1);
+    art.drawIsland($("island-preview"), { era: next.minEra, towers: 6 + (state.island + 1) * 2, shape });
+    $("island-next-name").textContent = next.name;
+    $("island-next-desc").textContent = `${next.desc}. Plus grande, déjà à l’${art.ERAS[next.minEra].name} dès l’arrivée, et production ×${next.mult} pour toujours.`;
+    const button = $("buy-island");
+    button.innerHTML = `Acheter l’île : ${format(next.cost)} ${COIN}`;
+    button.disabled = state.coins < next.cost;
+  }
+
   // Premier clic : demande de confirmation. Deuxième clic dans les 4 s : la partie est effacée.
   let resetTimer = null;
   function onReset() {
@@ -1052,6 +1194,7 @@
     }
     cancelReset();
     state = newState();
+    applyIsland();
     save();
     render();
     toast("Nouvelle partie : retour sur l’îlot désert");
@@ -1299,6 +1442,7 @@
     }
     if (activeTab === "stats") renderStats();
     if (activeTab === "projects") renderProjects();
+    if (activeTab === "workshop") renderWorkshop();
   }
 
   // Une ligne de statistique : icône, nom, barre proportionnelle, valeur.
@@ -1941,6 +2085,7 @@
       button.disabled = missing.length > 0 || state.knowledge < t.cost;
     });
     renderWonders();
+    renderArchipelago();
   }
 
   function onTechClick(event) {
@@ -2244,6 +2389,76 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 6 octies. Atelier
+  // ---------------------------------------------------------------------------
+
+  const inputName = (id) => (isGood(id) ? RECIPES.find((r) => r.id === id).name.toLowerCase() : RESOURCES.find((r) => r.id === id).plural);
+
+  function buildWorkshop() {
+    $("recipes").innerHTML = RECIPES.map((r) => `
+      <div class="card recipe" data-recipe-row="${r.id}">
+        <span class="item-icon">${icon(r.icon)}</span>
+        <span class="item-text">
+          <span class="item-name">${r.name}</span>
+          <span class="item-info">${Object.entries(r.inputs).map(([id, qty]) => `${qty} ${icon(isGood(id) ? RECIPES.find((x) => x.id === id).icon : id, undefined, "px mini-icon")} ${inputName(id)}`).join(" + ")}
+            → 1 · <span class="recipe-time"></span></span>
+          <span class="bar"><span class="bar-fill recipe-fill"></span></span>
+          <span class="item-info">Stock <span class="recipe-stock"></span> · vaut <span class="recipe-price"></span> ${COIN} l’unité</span>
+          <span class="item-effect recipe-lock"></span>
+        </span>
+        <span class="stock-actions">
+          <button type="button" class="refuse recipe-toggle" data-recipe="${r.id}" aria-pressed="false"></button>
+          <button type="button" class="sell" data-sell-good="${r.id}">Vendre<span class="sell-total"></span></button>
+        </span>
+      </div>`).join("");
+  }
+
+  function renderWorkshop() {
+    RECIPES.forEach((r) => {
+      const row = document.querySelector(`[data-recipe-row="${r.id}"]`);
+      const locked = era() < r.era;
+      const on = state.workshop.on[r.id];
+      const stock = state.workshop.goods[r.id];
+      const enough = Object.entries(r.inputs).every(([id, qty]) => stockOf(id) >= qty);
+      row.classList.toggle("locked", locked);
+      row.querySelector(".recipe-lock").textContent = locked
+        ? `Se débloque à l’${art.ERAS[r.era].name}`
+        : on && !enough ? "En attente : pas assez de matières" : on && stock >= goodsCap() ? "En attente : stock plein" : "";
+      row.querySelector(".recipe-time").textContent = format(recipeSeconds(r), true) + " s";
+      row.querySelector(".recipe-fill").style.width = Math.min(100, state.workshop.progress[r.id] * 100) + "%";
+      row.querySelector(".recipe-stock").textContent = `${format(stock)} / ${format(goodsCap())}`;
+      row.querySelector(".recipe-price").textContent = format(goodPrice(r), true);
+      const toggle = row.querySelector(".recipe-toggle");
+      toggle.disabled = locked;
+      toggle.textContent = on ? "En marche" : "Arrêtée";
+      toggle.setAttribute("aria-pressed", String(on));
+      const sell = row.querySelector("[data-sell-good]");
+      sell.disabled = stock < 1;
+      sell.querySelector(".sell-total").textContent = stock >= 1 ? ` +${format(stock * goodPrice(r))}` : "";
+    });
+  }
+
+  function onWorkshopClick(event) {
+    const toggle = event.target.closest("[data-recipe]");
+    if (toggle && !toggle.disabled) {
+      const id = toggle.dataset.recipe;
+      state.workshop.on[id] = !state.workshop.on[id];
+      render();
+      return;
+    }
+    const sell = event.target.closest("[data-sell-good]");
+    if (!sell || sell.disabled) return;
+    const r = RECIPES.find((x) => x.id === sell.dataset.sellGood);
+    const qty = state.workshop.goods[r.id];
+    const gain = qty * goodPrice(r);
+    state.workshop.goods[r.id] = 0;
+    earn(gain, "atelier");
+    const rect = sell.getBoundingClientRect();
+    floatText(rect.left + rect.width / 2, rect.top, `+${format(gain)} ${COIN}`);
+    render();
+  }
+
+  // ---------------------------------------------------------------------------
   // 7. Sauvegarde
   // ---------------------------------------------------------------------------
 
@@ -2281,7 +2496,6 @@
   // ---------------------------------------------------------------------------
 
   buildBackdrop();
-  art.drawIsland($("island-canvas"), {});
   sizeIsland();
   window.addEventListener("resize", sizeIsland);
   buildShop();
@@ -2289,9 +2503,11 @@
   buildAchievements();
   buildTechs();
   buildStocks();
+  buildWorkshop();
   document.querySelectorAll(".reel").forEach((reel, i) => { reel.innerHTML = icon(SLOT_SYMBOLS[i].icon); });
   drawWheel();
   load();
+  applyIsland();
   render();
 
   $("island").addEventListener("click", onIslandClick);
@@ -2309,6 +2525,8 @@
   $("bank-actions").addEventListener("click", onBankClick);
   $("stocks").addEventListener("click", onStockClick);
   $("casino").addEventListener("click", onCasinoClick);
+  $("recipes").addEventListener("click", onWorkshopClick);
+  $("buy-island").addEventListener("click", onBuyIsland);
   setInterval(save, SAVE_EVERY_MS);
   setInterval(autoBuy, 1000);
   setInterval(autoSell, 1000);

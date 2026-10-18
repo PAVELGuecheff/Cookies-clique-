@@ -720,12 +720,17 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 /* Onglets : 5 onglets sur deux lignes au téléphone */
 @media (max-width: 480px) {
-  .tabs { grid-template-columns: repeat(6, 1fr); row-gap: 14px; }
-  .tabs button { grid-column: span 2; }
+  /* 7 onglets : 4 sur la première ligne, 3 sur la seconde */
+  .tabs { grid-template-columns: repeat(12, 1fr); row-gap: 14px; }
+  .tabs button { grid-column: span 3; }
+  .tabs button:nth-child(n + 5) { grid-column: span 4; }
 
 }
 @media (min-width: 481px) {
-  .tabs { grid-template-columns: repeat(6, 1fr); }
+  /* Même rangement en 4 + 3 sur grand écran : 7 onglets côte à côte seraient trop serrés */
+  .tabs { grid-template-columns: repeat(12, 1fr); row-gap: 14px; }
+  .tabs button { grid-column: span 3; }
+  .tabs button:nth-child(n + 5) { grid-column: span 4; }
   .tabs button { font-size: .85rem; }
 }
 
@@ -980,3 +985,24 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .double-coin.flip { animation: flip .6s steps(6); }
 @keyframes flip { 50% { transform: scaleX(0) translateY(-10px); } }
 .stock .stock-actions { grid-template-columns: repeat(4, 1fr); }
+
+/* Atelier */
+.recipe { grid-template-columns: 40px minmax(0, 1fr); }
+.recipe .item-icon .px { width: 40px; }
+.recipe.locked { background: #eadcbc; }
+.recipe.locked .item-icon .px { opacity: .45; }
+.recipe .stock-actions { grid-template-columns: 1fr 1fr; }
+.recipe-toggle[aria-pressed="true"] { background: var(--green); color: var(--white); }
+.recipe-lock:empty { display: none; }
+
+/* Archipel */
+.archipelago { grid-template-columns: 1fr; }
+.island-next { display: flex; flex-direction: column; gap: 10px; }
+.island-preview { width: 100%; max-width: 320px; height: auto; align-self: center; background: var(--lagoon); box-shadow: var(--outline); }
+.buy-island { padding: 10px; font-size: 1.1rem; }
+.buy-island .coin-icon { height: 16px; }
+
+/* L’île flottante lévite doucement */
+.island.floating { animation: levitate 3s steps(6) infinite alternate; }
+@keyframes levitate { to { transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { .island.floating { animation: none; } }

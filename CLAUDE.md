@@ -23,6 +23,10 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
   niveaux de bâtiment (`LEVELS`), habitants célèbres (`CELEBS`, `CELEBRITIES`, effets lus par `celebEffect()`),
   recherche (`TECHS`, `hasTech()`), merveilles (`WONDERS`), Bourse (`STOCKS`, `COMPANIES`, `NEWS`) et jeux de hasard
   (`SLOT_SYMBOLS`, `BETS`, `DOUBLE`). Onglets : Construire, Métiers, Marché, Banque (coffre, Bourse, casino), Projets, Stats.
+- Atelier (`RECIPES`, `runWorkshop()`) : les machines transforment ressources et produits, recettes débloquées par époque.
+- Archipel (`ARCHIPELAGO` dans game.js, `THEMES`/`islandShape()`/`setIsland()` dans art.js) : « acheter une nouvelle île »
+  remet la partie à zéro (on garde succès, stats, roue) sur une île plus grande et plus futuriste, production × `mult`.
+  `applyIsland()` recalcule taille, emplacements et dessin ; les positions sur l’île sont relatives à `ISLAND.cx/cy`.
 - Époques de l’île (`ERAS` dans art.js, `ERA_BY_STAGE` dans game.js) : routes, lampadaires, quai et tours au fond
   (`drawIsland(canvas, { era, towers, night })`), le nombre de tours suit la `capitalisation()` de l’île.
 - `earn(montant, source)` : la source (`batiments`, `clics`, `marche`, `evenements`, `commandes`) alimente l’onglet Stats.

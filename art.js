@@ -584,6 +584,55 @@
       "..kmmmkBkmmmmk..",
       "..kkkkkkkkkkkk..",
     ],
+    // Produits de l’atelier
+    huile: [
+      "...kkkk...",
+      "...kbbk...",
+      "...kkkk...",
+      "...kwwk...",
+      "..kwyywk..",
+      ".kyyyyyyk.",
+      "kyyYyyyyyk",
+      "kyyyyyyYyk",
+      "kyYyyyyyyk",
+      "kyyyyyyyyk",
+      ".kYYYYYYk.",
+      "..kkkkkk..",
+    ],
+    caisse: [
+      "kkkkkkkkkkkk",
+      "kbbbbbbbbbbk",
+      "kbkbbbbbbkbk",
+      "kbbkbbbbkbbk",
+      "kbbbkbbkbbbk",
+      "kbbbbkkbbbbk",
+      "kbbbkbbkbbbk",
+      "kbbkbbbbkbbk",
+      "kbkbbbbbbkbk",
+      "kkkkkkkkkkkk",
+    ],
+    moteur: [
+      "................",
+      "......kkkkk.....",
+      "......keeek.....",
+      "......keeek.....",
+      "kk..kkkkkkkkk...",
+      "kMkkiiiiiiiiikkk",
+      "kMiiiiiiiiiiiiik",
+      ".kiiRRRRRRRRRik.",
+      "..kkkkkkkkkkkk..",
+    ],
+    drone: [
+      "kkkk....kkkk",
+      "..k......k..",
+      "..kkkkkkkk..",
+      ".kMMMMMMMMk.",
+      "kMMeeeeeeMMk",
+      "kMMeiieeeMMk",
+      ".kMMMMMMMMk.",
+      "..kk.kk.kk..",
+      "...k.yy.k...",
+    ],
     hausse: [
       "...k...",
       "..kgk..",
@@ -756,7 +805,17 @@
   }
 
   // ---- L’île, dessinée pixel par pixel ----
-  const ISLAND = { w: 112, h: 100, cx: 56, cy: 58, rx: 50, ry: 28, side: 5 };
+  // Les îles de l’archipel : chacune plus grande et plus futuriste que la précédente.
+  const THEMES = ["tropical", "recifs", "neon", "artificielle", "flottante"];
+  function islandShape(index) {
+    const size = Math.max(0, Math.min(THEMES.length - 1, index || 0));
+    const w = 112 + size * 12;
+    const floating = THEMES[size] === "flottante";
+    return { index: size, theme: THEMES[size], w, h: 100 + size * 6 + (floating ? 26 : 0), cx: w / 2, cy: 58 + size * 2, rx: 50 + size * 6, ry: 28 + size * 3, side: 5 };
+  }
+  const ISLAND = islandShape(0);
+  // Change d’île : on modifie l’objet ISLAND lui-même (game.js garde la même référence).
+  const setIsland = (index) => Object.assign(ISLAND, islandShape(index));
 
   // Les époques de l’île : chaque époque change les chemins, le décor et la ligne de tours.
   // road : largeur et couleurs des routes ; towers : couleurs des tours au fond de l’île.
@@ -781,10 +840,17 @@
   const inEllipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
 
   // Dessine l’île selon son époque (era), le nombre de tours (towers) et la nuit (lumières aux fenêtres).
+  // shape : une autre île que l’île actuelle (pour l’aperçu de la prochaine île).
   function drawIsland(canvas, options) {
     const opts = options || {};
     const era = ERAS[Math.min(opts.era || 0, ERAS.length - 1)];
-    const { w, h, cx, cy, rx, ry, side } = ISLAND;
+    const shape = opts.shape || ISLAND;
+    const { w, h, cx, cy, rx, ry, side, theme } = shape;
+    // Forme du dessus : ovale, ou carré arrondi pour l’île artificielle.
+    const onTop = (x, y, grow) => (theme === "artificielle"
+      ? Math.abs((x - cx) / (rx + grow)) ** 4 + Math.abs((y - cy) / (ry + grow)) ** 4 <= 1
+      : inEllipse(x, y, cx, cy, rx + grow, ry + grow));
+    const below = (x, y, grow) => onTop(x, y - side, grow);
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d");
@@ -819,25 +885,60 @@
       }
     }
 
-    // 2. L’île : plage, falaise, écume et eau peu profonde.
+    // 2. L’île : surface, bord, falaise, écume et eau peu profonde (couleurs selon l’île).
+    const look = {
+      tropical:     { ground: "s", speck: "S", edge: "w", cliff: ["d", "b", "B"], foam: "w", shallow: "t" },
+      recifs:       { ground: "s", speck: "S", edge: "w", cliff: ["d", "b", "B"], foam: "w", shallow: "t", coral: true },
+      neon:         { ground: "S", speck: "d", edge: "t", cliff: ["n", "M", "k"], foam: "e", shallow: "u" },
+      artificielle: { ground: "m", speck: "m", edge: "t", cliff: ["M", "M", "n"], foam: "e", shallow: "T", tiles: true, lights: true },
+      flottante:    { ground: "g", speck: "G", edge: "w", cliff: ["b", "B", "k"], floating: true },
+    }[theme];
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        const top = inEllipse(x + 0.5, y + 0.5, cx, cy, rx, ry);
-        const edge = top && !inEllipse(x + 0.5, y + 0.5, cx, cy, rx - 1.5, ry - 1.5);
-        const cliff = !top && inEllipse(x + 0.5, y + 0.5, cx, cy + side, rx, ry);
-        const foam = !top && !cliff && inEllipse(x + 0.5, y + 0.5, cx, cy + side, rx + 3, ry + 3);
-        const shallow = !top && !cliff && !foam && inEllipse(x + 0.5, y + 0.5, cx, cy + side, rx + 9, ry + 8);
-        if (edge) px(x, y, "w");
-        else if (top) px(x, y, rand() < 0.06 ? "S" : "s");
-        else if (cliff) px(x, y, y > cy + ry + side - 2 ? "B" : rand() < 0.15 ? "b" : "d");
-        else if (foam) { if ((x + y) % 3 !== 0) px(x, y, "w"); }
-        else if (shallow && y > topEdge(x) - 4) px(x, y, "t");
+        const X = x + 0.5;
+        const Y = y + 0.5;
+        const top = onTop(X, Y, 0);
+        const edge = top && !onTop(X, Y, -1.5);
+        const cliff = !top && below(X, Y, 0);
+        if (edge) px(x, y, look.edge);
+        else if (top) px(x, y, look.tiles ? ((x % 6 === 0 || y % 6 === 0) ? "M" : "m") : rand() < 0.06 ? look.speck : look.ground);
+        else if (cliff) {
+          if (look.lights && y === Math.round(cy + ry + 2) && x % 4 === 0) px(x, y, opts.night ? "y" : "e");
+          else px(x, y, y > cy + ry + side - 2 ? look.cliff[2] : rand() < 0.15 ? look.cliff[1] : look.cliff[0]);
+        } else if (!look.floating) {
+          const foam = below(X, Y, 3);
+          const shallow = below(X, Y, 9);
+          if (foam) { if ((x + y) % 3 !== 0) px(x, y, look.foam); }
+          else if (shallow && y > topEdge(x) - 4) {
+            // Récifs : des coraux colorés dans l’eau peu profonde.
+            const c = look.coral && rand() < 0.16 ? ["r", "o", "l", "r"][Math.floor(rand() * 4)] : look.shallow;
+            px(x, y, c);
+          }
+        }
       }
+    }
+    // Île flottante : un rocher qui pend sous l’île, avec des cristaux lumineux, et quelques nuages.
+    if (look.floating) {
+      const bottom = cy + ry + side;
+      for (let y = bottom - 2; y < h - 2; y++) {
+        const half = (rx - 6) * (1 - (y - bottom) / (h - bottom)) ** 1.4;
+        for (let x = Math.round(cx - half); x <= Math.round(cx + half); x++) {
+          if (below(x + 0.5, y + 0.5, 0)) continue;
+          const border = x <= Math.round(cx - half) || x >= Math.round(cx + half);
+          px(x, y, border ? "k" : rand() < 0.05 ? (opts.night ? "e" : "t") : rand() < 0.2 ? "B" : "b");
+        }
+      }
+      [[cx - rx - 2, bottom - 4], [cx + rx - 14, bottom + 6], [cx - rx + 8, bottom + 12]].forEach(([x0, y0]) => {
+        for (let k = 0; k < 16; k++) rect(Math.round(x0 + k), y0 + (k > 3 && k < 12 ? -2 : 0), 1, k > 3 && k < 12 ? 4 : 2, "w");
+      });
     }
 
     // 3. Herbe (moins d’herbe quand la ville grandit) et petits cailloux.
-    const patches = opts.era >= 3 ? [[24, 44, 6, 3], [86, 48, 5, 3]] : [[24, 44, 9, 5], [86, 48, 7, 4], [40, 72, 6, 3], [74, 70, 8, 4]];
-    patches.forEach(([gx, gy, grx, gry]) => {
+    const patches = theme === "artificielle" || theme === "flottante" ? []
+      : opts.era >= 3 ? [[-32, -14, 6, 3], [30, -10, 5, 3]] : [[-32, -14, 9, 5], [30, -10, 7, 4], [-16, 14, 6, 3], [18, 12, 8, 4]];
+    patches.forEach(([dx, dy, grx, gry]) => {
+      const gx = cx + dx;
+      const gy = cy + dy;
       for (let y = gy - gry; y <= gy + gry; y++) {
         for (let x = gx - grx; x <= gx + grx; x++) {
           if (inEllipse(x + 0.5, y + 0.5, gx, gy, grx, gry) && inEllipse(x, y, cx, cy, rx - 4, ry - 4)) {
@@ -846,7 +947,7 @@
         }
       }
     });
-    for (let n = 0; n < 14; n++) {
+    for (let n = 0; n < (theme === "artificielle" || theme === "flottante" ? 0 : 14); n++) {
       const x = Math.round(cx + (rand() - 0.5) * rx * 1.6);
       const y = Math.round(cy + (rand() - 0.5) * ry * 1.6);
       if (inEllipse(x, y, cx, cy, rx - 4, ry - 4)) px(x, y, n % 3 ? "S" : "M");
@@ -883,7 +984,7 @@
     }
 
     // 5. Un quai qui avance dans l’eau, à droite de l’île.
-    if (era.pier) {
+    if (era.pier && theme !== "flottante") {
       const py = cy + 4;
       for (let x = cx + rx - 4; x < Math.min(w, cx + rx + 9); x++) {
         rect(x, py, 1, 3, x % 2 ? era.pier : "B");
@@ -913,5 +1014,5 @@
   const canvasOf = (name, look) =>
     draw(SPRITES[name], look === undefined ? null : VILLAGER_LOOKS[look % VILLAGER_LOOKS.length]);
 
-  window.PixelArt = { PALETTE, SPRITES, VILLAGER_LOOKS, ISLAND, ERAS, url, size, canvasOf, drawIsland, buildingSlots, inEllipse, seeded };
+  window.PixelArt = { PALETTE, SPRITES, VILLAGER_LOOKS, ISLAND, ERAS, THEMES, islandShape, setIsland, url, size, canvasOf, drawIsland, buildingSlots, inEllipse, seeded };
 })();
