@@ -40,7 +40,8 @@
         <span class="scene" id="scene" aria-hidden="true"></span>
         <span class="scene" id="arrivals" aria-hidden="true"></span>
       </button>
-      <p class="click-hint">Touchez l’île : <strong id="click-value">+1</strong> <img class="px coin-icon" data-sprite="piece" alt="pièces"> <span class="combo" id="combo"></span></p>
+      <p class="click-hint">Touchez l’île : <strong id="click-value">+1</strong> <img class="px coin-icon" data-sprite="piece" alt="pièces"> <span class="combo" id="combo"></span> <span class="combo streak" id="streak"></span></p>
+      <button class="wheel-button" id="wheel-open" type="button" hidden><img class="px" data-sprite="roue" alt=""> Roue du jour</button>
       <p class="buffs" id="buffs" hidden></p>
     </section>
 
@@ -142,11 +143,29 @@
         <div class="stat-list" id="stats-buildings"></div>
         <h3>Records</h3>
         <dl class="records" id="stats-records"></dl>
+        <h3>Succès <span id="ach-count"></span></h3>
+        <p class="pop-bonus" id="ach-bonus"></p>
+        <div class="achievements" id="achievements"></div>
       </div>
 
       <button class="reset" id="reset" type="button">Recommencer la partie</button>
     </section>
   </main>
+
+  <div class="modal" id="wheel-modal" hidden role="dialog" aria-modal="true" aria-labelledby="wheel-title">
+    <div class="modal-box">
+      <h2 id="wheel-title">Roue du jour</h2>
+      <div class="wheel-wrap">
+        <img class="px wheel-pointer" data-sprite="baisse" alt="">
+        <canvas id="wheel-canvas"></canvas>
+      </div>
+      <p class="wheel-result" id="wheel-result"></p>
+      <div class="modal-actions">
+        <button type="button" class="sell" id="wheel-spin">Tourner !</button>
+        <button type="button" class="refuse" id="wheel-close">Fermer</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

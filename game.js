@@ -74,6 +74,46 @@
   const GOLD_CLICK = { mult: 10, seconds: 15 }; // clic ×10 pendant 15 s
   const COMBO_WINDOW_MS = 400; // délai max entre deux clics pour garder le combo
   const COMBO_MAX = 50;        // 50 clics rapides = clic ×2
+  // Série de bouteilles : en attraper 3 d’affilée (sans en rater) déclenche une super-frénésie.
+  const BOTTLE_STREAK = { needed: 3, mult: 20, seconds: 20 };
+
+  // Roue du jour : un tour gratuit par jour. weight = chances relatives de tomber sur la case.
+  const WHEEL = [
+    { id: "tresor",   name: "Trésor : 30 min de production",  icon: "piece",     weight: 30 },
+    { id: "frenesie", name: "Frénésie ×7 pendant 60 s",       icon: "bouteille", weight: 20 },
+    { id: "clicor",   name: "Clic d’or ×10 pendant 30 s",     icon: "machette",  weight: 15 },
+    { id: "stocks",   name: "Tous les stocks remplis",        icon: "poisson",   weight: 15 },
+    { id: "gros",     name: "Gros trésor : 2 h de production", icon: "coffre",    weight: 8 },
+    { id: "super",    name: "Super-frénésie ×20 pendant 30 s", icon: "soleil",    weight: 7 },
+  ];
+
+  // Succès : chacun débloqué donne +1 % de production pour toujours.
+  const ACHIEVEMENT_BONUS = 0.01;
+  const ACHIEVEMENTS = [
+    { id: "clic1",      name: "Premier pas",         desc: "Toucher l’île une fois",                test: () => state.stats.clicks >= 1 },
+    { id: "clic1000",   name: "Main de fer",          desc: "Toucher l’île 1 000 fois",              test: () => state.stats.clicks >= 1000 },
+    { id: "combo",      name: "Frénétique",           desc: "Atteindre un combo ×2",                 test: () => state.stats.bestCombo >= COMBO_MAX },
+    { id: "hutte25",    name: "Quartier de huttes",   desc: "Avoir 25 huttes",                       test: () => (state.owned.hutte || 0) >= 25 },
+    { id: "pecheur25",  name: "Flotte de pêche",      desc: "Avoir 25 cabanes de pêcheur",           test: () => (state.owned.pecheur || 0) >= 25 },
+    { id: "cocos25",    name: "Palmeraie",            desc: "Avoir 25 cocoteraies",                  test: () => (state.owned.cocos || 0) >= 25 },
+    { id: "port10",     name: "Armateur",             desc: "Avoir 10 ports",                        test: () => (state.owned.port || 0) >= 10 },
+    { id: "tous",       name: "Bâtisseur complet",    desc: "Avoir au moins un bâtiment de chaque",  test: () => BUILDINGS.every((b) => (state.owned[b.id] || 0) > 0) },
+    { id: "village",    name: "Village",              desc: "Atteindre 100 habitants",               test: () => population() >= 100 },
+    { id: "ville",      name: "Ville",                desc: "Atteindre 10 000 habitants",            test: () => population() >= 10000 },
+    { id: "nation",     name: "Île-nation",           desc: "Atteindre 100 000 habitants",           test: () => population() >= 100000 },
+    { id: "million",    name: "Millionnaire",         desc: "Gagner 1 million de pièces",            test: () => state.totalEarned >= 1e6 },
+    { id: "milliard",   name: "Milliardaire",         desc: "Gagner 1 milliard de pièces",           test: () => state.totalEarned >= 1e9 },
+    { id: "bouteilles", name: "Collectionneur",       desc: "Attraper 10 bouteilles",                test: () => state.stats.bottles >= 10 },
+    { id: "serie",      name: "Trois d’affilée",      desc: "Déclencher une super-frénésie",         test: () => (state.stats.superFrenzies || 0) >= 1 },
+    { id: "touristes",  name: "Accueil des touristes", desc: "Accueillir 10 bateaux de touristes",   test: () => state.stats.boats >= 10 },
+    { id: "commandes",  name: "Fournisseur officiel", desc: "Livrer 5 commandes",                    test: () => (state.stats.orders || 0) >= 5 },
+    { id: "commerce",   name: "Commerçant",           desc: "Gagner 100 000 pièces au marché",       test: () => (state.stats.sources.marche || 0) >= 1e5 },
+    { id: "ventre",     name: "Ventre plein",         desc: "Avoir des habitants bien nourris",      test: () => foodActive() && state.satiety >= 80 },
+    { id: "emploi",     name: "Plein emploi",         desc: "Donner un métier à tous les habitants", test: () => freeShare() < 0.001 },
+    { id: "coffre",     name: "Coffre rempli",        desc: "Remplir le coffre",                     test: () => state.bank >= bankCapacity() - 1 },
+    { id: "nuit",       name: "Nuit blanche",         desc: "Jouer entre 20 h et 7 h",               test: () => document.documentElement.classList.contains("night") },
+    { id: "chance",     name: "Chanceux",             desc: "Tourner la roue 7 fois",                test: () => (state.stats.spins || 0) >= 7 },
+  ];
 
   // Synergies : chaque exemplaire de « from » augmente la production de « to ».
   const SYNERGIES = [
@@ -158,12 +198,15 @@
         bois: { on: false, min: 1.2, keep: 0 }, poisson: { on: false, min: 1.2, keep: 0 }, noix: { on: false, min: 1.2, keep: 0 },
       },
       satiety: 100, // en %
+      bottleStreak: 0,    // bouteilles attrapées d’affilée
+      lastSpin: "",       // date du dernier tour de roue
+      achievements: {},   // succès débloqués
       order: null,  // commande en cours : { res, qty, reward, expiresAt }
       autoSellTotal: 0,
       autoMode: "cheap", // l’intendant achète le moins cher ("cheap") ou le plus rentable ("best")
       stats: {
         sources: { batiments: 0, clics: 0, marche: 0, evenements: 0, commandes: 0, coffre: 0 },
-        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0,
+        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0, superFrenzies: 0, spins: 0,
       },
       tabsSeen: { build: true },
     };
@@ -213,7 +256,8 @@
     b.cps * ownedUpgrades().reduce((m, u) => (u.effect.building === b.id ? m * 2 : m), 1) * (1 + synergyBonus(b));
   const popBonus = () => ownedUpgrades().reduce((sum, u) => sum + (u.effect.popBonus || 0), 0) * population();
   const perSecond = () => BUILDINGS.reduce((sum, b) => sum + buildingCps(b) * count(b), 0)
-    * (1 + popBonus()) * (1 + jobEffect("pecheurs")) * (1 + satietyMult());
+    * (1 + popBonus()) * (1 + jobEffect("pecheurs")) * (1 + satietyMult()) * (1 + achievementBonus());
+  const achievementBonus = () => ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length * ACHIEVEMENT_BONUS;
 
   // Nourriture
   const foodActive = () => (state.owned.pecheur || 0) > 0;
@@ -396,10 +440,15 @@
     $("population").textContent = format(population());
     $("click-value").textContent = "+" + format(clickValue(), true);
     $("combo").textContent = combo >= 5 ? `Combo ×${format(comboMult(), true)}` : "";
+    $("streak").textContent = state.bottleStreak > 0 ? `Série ${state.bottleStreak}/${BOTTLE_STREAK.needed}` : "";
+    $("wheel-open").hidden = state.lastSpin === todayKey();
 
     const active = [];
     const now = performance.now();
-    if (now < buffs.prod.until) active.push(`Frénésie : production ×${FRENZY.mult} · ${Math.ceil((buffs.prod.until - now) / 1000)} s`);
+    if (now < buffs.prod.until) {
+      const label = buffs.prod.mult >= BOTTLE_STREAK.mult ? "Super-frénésie" : "Frénésie";
+      active.push(`${label} : production ×${buffs.prod.mult} · ${Math.ceil((buffs.prod.until - now) / 1000)} s`);
+    }
     if (now < buffs.click.until) active.push(`Clic d’or : clic ×${GOLD_CLICK.mult} · ${Math.ceil((buffs.click.until - now) / 1000)} s`);
     $("buffs").textContent = active.join(" · ");
     $("buffs").hidden = active.length === 0;
@@ -820,6 +869,8 @@
     const timer = setTimeout(() => {
       el.remove();
       bottleOnScreen = false;
+      if (state.bottleStreak > 0) toast(`${icon("bouteille")} Bouteille perdue : la série repart à zéro`);
+      state.bottleStreak = 0;
     }, BOTTLE.lifetime * 1000);
     el.addEventListener("click", () => {
       clearTimeout(timer);
@@ -831,6 +882,15 @@
 
   function openBottle(el) {
     state.stats.bottles++;
+    state.bottleStreak++;
+    if (state.bottleStreak >= BOTTLE_STREAK.needed) {
+      state.bottleStreak = 0;
+      superFrenzy(BOTTLE_STREAK.seconds);
+      rewardAt(el, "Super-frénésie ×" + BOTTLE_STREAK.mult);
+      toast(`${icon("bouteille")} ${BOTTLE_STREAK.needed} bouteilles d’affilée ! Super-frénésie ×${BOTTLE_STREAK.mult} pendant ${BOTTLE_STREAK.seconds} s`);
+      render();
+      return;
+    }
     const roll = Math.random();
     if (roll < 0.5) {
       const gain = Math.max(clickValue() * 30, Math.min(state.coins * 0.15, perSecond() * 900));
@@ -838,7 +898,7 @@
       rewardAt(el, "+" + format(gain) + " " + COIN);
       toast(`${icon("bouteille")} Un trésor dans la bouteille : +${format(gain)} ${COIN}`);
     } else if (roll < 0.8) {
-      buffs.prod = { mult: FRENZY.mult, until: performance.now() + FRENZY.seconds * 1000 };
+      frenzy(FRENZY.mult, FRENZY.seconds);
       rewardAt(el, "Frénésie ×" + FRENZY.mult);
       toast(`${icon("bouteille")} Frénésie ! Production ×${FRENZY.mult} pendant ${FRENZY.seconds} s`);
     } else {
@@ -847,6 +907,14 @@
       toast(`${icon("bouteille")} Clic d’or ! Chaque clic ×${GOLD_CLICK.mult} pendant ${GOLD_CLICK.seconds} s`);
     }
     render();
+  }
+
+  function frenzy(mult, seconds) {
+    buffs.prod = { mult, until: performance.now() + seconds * 1000 };
+  }
+  function superFrenzy(seconds) {
+    frenzy(BOTTLE_STREAK.mult, seconds);
+    state.stats.superFrenzies = (state.stats.superFrenzies || 0) + 1;
   }
 
   function spawnBoat() {
@@ -1033,8 +1101,11 @@
       ["Bouteilles attrapées", format(st.bottles)],
       ["Bateaux accueillis", format(st.boats)],
       ["Commandes livrées", format(st.orders || 0)],
+      ["Super-frénésies", format(st.superFrenzies || 0)],
+      ["Tours de roue", format(st.spins || 0)],
     ];
     $("stats-records").innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+    renderAchievements();
   }
 
   function renderJobs() {
@@ -1233,6 +1304,140 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 6 ter. Succès et roue du jour
+  // ---------------------------------------------------------------------------
+
+  // Vérifiés une fois par seconde ; un message annonce les nouveaux.
+  function checkAchievements() {
+    const fresh = ACHIEVEMENTS.filter((a) => !state.achievements[a.id] && a.test());
+    fresh.forEach((a) => { state.achievements[a.id] = true; });
+    if (fresh.length === 1) {
+      toast(`${icon("trophee")} Succès : ${fresh[0].name} ! Production +1\u00a0%`);
+    } else if (fresh.length > 1) {
+      toast(`${icon("trophee")} ${fresh.length} succès débloqués ! Production +${fresh.length}\u00a0%`);
+    }
+  }
+
+  function buildAchievements() {
+    $("achievements").innerHTML = ACHIEVEMENTS.map((a) => `
+      <div class="achievement" data-ach="${a.id}">
+        ${icon("trophee")}
+        <span class="item-text"><span class="item-name">${a.name}</span><span class="item-info">${a.desc}</span></span>
+      </div>`).join("");
+  }
+
+  function renderAchievements() {
+    const done = ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length;
+    $("ach-count").textContent = `${done} / ${ACHIEVEMENTS.length}`;
+    $("ach-bonus").textContent = `Bonus des succès : production +${format(achievementBonus() * 100, true)}\u00a0%`;
+    ACHIEVEMENTS.forEach((a) => {
+      document.querySelector(`[data-ach="${a.id}"]`).classList.toggle("done", !!state.achievements[a.id]);
+    });
+  }
+
+  const todayKey = () => new Date().toDateString();
+
+  // La roue est dessinée en pixels : 6 parts colorées avec l’icône de chaque gain.
+  function drawWheel() {
+    const canvas = $("wheel-canvas");
+    const size = 72;
+    const radius = 34;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const colors = ["y", "t", "o", "g", "l", "e"].map((c) => art.PALETTE[c]);
+    const part = (Math.PI * 2) / WHEEL.length;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x + 0.5 - size / 2;
+        const dy = y + 0.5 - size / 2;
+        const dist = Math.hypot(dx, dy);
+        if (dist > radius) continue;
+        // Angle mesuré depuis le haut, dans le sens des aiguilles d’une montre.
+        const angle = (Math.atan2(dx, -dy) + Math.PI * 2) % (Math.PI * 2);
+        const index = Math.floor(angle / part);
+        const edge = dist > radius - 2 || Math.abs(angle - Math.round(angle / part) * part) * dist < 0.8;
+        ctx.fillStyle = edge || dist < 4 ? art.PALETTE.k : colors[index];
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    WHEEL.forEach((w, i) => {
+      const icon = art.canvasOf(w.icon);
+      const middle = (i + 0.5) * part;
+      const cx = size / 2 + Math.sin(middle) * radius * 0.6;
+      const cy = size / 2 - Math.cos(middle) * radius * 0.6;
+      ctx.drawImage(icon, Math.round(cx - icon.width / 2), Math.round(cy - icon.height / 2));
+    });
+  }
+
+  let wheelTurns = 0;
+  let spinning = false;
+
+  function openWheel() {
+    $("wheel-modal").hidden = false;
+    const spent = state.lastSpin === todayKey();
+    $("wheel-spin").disabled = spent;
+    $("wheel-result").textContent = spent ? "Vous avez déjà tourné la roue aujourd’hui. Revenez demain !" : "Un tour gratuit par jour. Bonne chance !";
+  }
+
+  function spinWheel() {
+    if (spinning || state.lastSpin === todayKey()) return;
+    spinning = true;
+    state.lastSpin = todayKey();
+    state.stats.spins = (state.stats.spins || 0) + 1;
+    $("wheel-spin").disabled = true;
+    // Tirage au sort selon les chances de chaque case.
+    const total = WHEEL.reduce((sum, w) => sum + w.weight, 0);
+    let pick = Math.random() * total;
+    const index = WHEEL.findIndex((w) => (pick -= w.weight) < 0);
+    // 5 tours complets, puis on s’arrête avec la case gagnante sous la flèche.
+    const part = 360 / WHEEL.length;
+    wheelTurns += 5 * 360 + (360 - ((wheelTurns % 360) + (index + 0.5) * part) % 360);
+    const canvas = $("wheel-canvas");
+    canvas.style.transform = `rotate(${wheelTurns}deg)`;
+    $("wheel-result").textContent = "La roue tourne…";
+    const done = () => {
+      canvas.removeEventListener("transitionend", done);
+      spinning = false;
+      $("wheel-result").innerHTML = "Gagné : " + applyWheel(WHEEL[index]);
+      render();
+    };
+    canvas.addEventListener("transitionend", done);
+    // Si l’animation est coupée (mouvement réduit), on donne le gain quand même.
+    if (getComputedStyle(canvas).transitionDuration === "0s") done();
+  }
+
+  function applyWheel(w) {
+    const production = Math.max(perSecond(), 1);
+    switch (w.id) {
+      case "tresor": {
+        const gain = Math.max(200, production * 1800);
+        earn(gain, "evenements");
+        return `+${format(gain)} ${COIN}`;
+      }
+      case "gros": {
+        const gain = Math.max(1000, production * 7200);
+        earn(gain, "evenements");
+        return `gros trésor, +${format(gain)} ${COIN}`;
+      }
+      case "frenesie":
+        frenzy(FRENZY.mult, 60);
+        return `frénésie ×${FRENZY.mult} pendant 60 s`;
+      case "clicor":
+        buffs.click = { mult: GOLD_CLICK.mult, until: performance.now() + 30000 };
+        return `clic d’or ×${GOLD_CLICK.mult} pendant 30 s`;
+      case "super":
+        superFrenzy(30);
+        return `super-frénésie ×${BOTTLE_STREAK.mult} pendant 30 s`;
+      default:
+        // Stocks remplis (ou un trésor si le marché n’est pas encore ouvert).
+        if (!foodActive()) return applyWheel(WHEEL[0]);
+        RESOURCES.forEach((r) => { if (count(buildingOf(r)) > 0) state.res[r.id] = storage(r); });
+        return "tous les stocks remplis";
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // 7. Sauvegarde
   // ---------------------------------------------------------------------------
 
@@ -1275,6 +1480,8 @@
   window.addEventListener("resize", sizeIsland);
   buildShop();
   buildPanels();
+  buildAchievements();
+  drawWheel();
   load();
   render();
 
@@ -1294,6 +1501,10 @@
   setInterval(save, SAVE_EVERY_MS);
   setInterval(autoBuy, 1000);
   setInterval(autoSell, 1000);
+  setInterval(checkAchievements, 1000);
+  $("wheel-open").addEventListener("click", openWheel);
+  $("wheel-spin").addEventListener("click", spinWheel);
+  $("wheel-close").addEventListener("click", () => { $("wheel-modal").hidden = true; });
   updateDayNight();
   setInterval(updateDayNight, 60000);
 

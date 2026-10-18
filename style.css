@@ -763,3 +763,61 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .refuse:active { transform: translateY(3px); box-shadow: var(--outline), 0 2px var(--ink); }
 .auto-sell { flex-wrap: wrap; }
 .auto-sell button { font-size: .9rem; white-space: nowrap; }
+
+/* Série de bouteilles */
+.streak { background: var(--lagoon); }
+.streak:empty { display: none; }
+
+/* Bouton et fenêtre de la roue du jour */
+.wheel-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px auto 0;
+  padding: 6px 14px 4px;
+  border: none;
+  background: var(--gold);
+  box-shadow: var(--outline), 0 5px var(--ink);
+  font-size: 1.05rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  animation: hop 1s steps(2) infinite;
+}
+.wheel-button .px { width: 28px; }
+.wheel-button:active { transform: translateY(3px); box-shadow: var(--outline), 0 2px var(--ink); }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(35, 20, 31, .75);
+}
+.modal-box {
+  width: min(100%, 360px);
+  padding: 18px 16px 16px;
+  background: var(--cream);
+  box-shadow: 0 -4px var(--ink), 0 4px var(--ink), -4px 0 var(--ink), 4px 0 var(--ink), 0 10px var(--ink-deep), inset 0 0 0 4px var(--sand);
+  text-align: center;
+}
+.modal-box h2 { margin: 0 0 12px; font-size: 1.6rem; font-weight: 400; }
+.wheel-wrap { position: relative; width: 216px; margin: 18px auto 0; }
+.wheel-wrap canvas { display: block; width: 216px; height: 216px; transition: transform 3.2s cubic-bezier(.15, .7, .2, 1); }
+.wheel-pointer { position: absolute; top: -18px; left: 50%; z-index: 1; width: 28px; transform: translateX(-50%); }
+.wheel-result { min-height: 2.6em; margin: 14px 0; font-size: 1.1rem; }
+.wheel-result .coin-icon { height: 16px; }
+.modal-actions { display: flex; gap: 12px; }
+.modal-actions button { flex: 1; }
+@media (prefers-reduced-motion: reduce) { .wheel-wrap canvas { transition: none; } .wheel-button { animation: none; } }
+
+/* Succès */
+.achievements { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.achievement { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px 8px; box-shadow: var(--outline); background: #eadcbc; }
+.achievement .px { width: 28px; filter: grayscale(1); opacity: .45; }
+.achievement .item-name { font-size: .95rem; color: var(--muted); }
+.achievement .item-info { font-size: .75rem; }
+.achievement.done { background: #fff1c9; }
+.achievement.done .px { filter: none; opacity: 1; }
+.achievement.done .item-name { color: var(--ink); }

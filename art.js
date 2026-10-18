@@ -459,6 +459,36 @@
       "...kkkkkkkkkk...",
       "................",
     ],
+    trophee: [
+      "..kkkkkkkkkk..",
+      "kkkyyyyyyyYkkk",
+      "kyky.yyyyyYkyk",
+      "kyky.yyyyyYkyk",
+      ".kyk.yyyyYkyk.",
+      "..kkyyyyyYkk..",
+      "....kyyyYk....",
+      ".....kyYk.....",
+      "......kk......",
+      ".....kYYk.....",
+      "....kkkkkk....",
+      "...kbbbbbbk...",
+      "...kBBBBBBk...",
+      "...kkkkkkkk...",
+    ],
+    roue: [
+      "....kkkkkk....",
+      "..kkrrwwyykk..",
+      ".krrrrwwyyyyk.",
+      ".krrrkwwkyyyk.",
+      "kttttkkkkggggk",
+      "kttttkiikggggk",
+      "kttttkiikggggk",
+      "kttttkkkkggggk",
+      ".kooukkkkulllk",
+      ".koooukkulllk.",
+      "..kkoouullkk..",
+      "....kkkkkk....",
+    ],
     hausse: [
       "...k...",
       "..kgk..",
@@ -693,5 +723,9 @@
     return slots.sort((a, b) => Math.hypot(a.x - cx, (a.y - cy) * 1.7) - Math.hypot(b.x - cx, (b.y - cy) * 1.7));
   }
 
-  window.PixelArt = { PALETTE, SPRITES, VILLAGER_LOOKS, ISLAND, url, size, drawIsland, buildingSlots, inEllipse, seeded };
+  // Le dessin sous forme de canvas (pour le dessiner dans un autre canvas, comme la roue).
+  const canvasOf = (name, look) =>
+    draw(SPRITES[name], look === undefined ? null : VILLAGER_LOOKS[look % VILLAGER_LOOKS.length]);
+
+  window.PixelArt = { PALETTE, SPRITES, VILLAGER_LOOKS, ISLAND, url, size, canvasOf, drawIsland, buildingSlots, inEllipse, seeded };
 })();
