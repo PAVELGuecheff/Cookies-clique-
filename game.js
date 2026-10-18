@@ -151,9 +151,13 @@
     const next = STAGES[stageIndex() + 1];
     $("stage-title").textContent = stage.title;
     $("island-emoji").textContent = stage.emoji;
+    const pop = population();
     $("stage-next").textContent = next
-      ? `Prochain palier : ${next.title} à ${format(next.pop)} habitants`
+      ? `${format(pop)} / ${format(next.pop)} habitants · prochain palier : ${next.title}`
       : "Votre île est devenue une nation ! 🎉";
+    const progress = next ? (pop - stage.pop) / (next.pop - stage.pop) : 1;
+    $("progress-fill").style.width = Math.min(100, progress * 100) + "%";
+    renderScene();
 
     // Un bâtiment apparaît quand on a gagné la moitié de son prix (le premier est toujours visible).
     BUILDINGS.forEach((b, i) => {
@@ -199,6 +203,85 @@
     if (i > state.stage) {
       state.stage = i;
       toast(`${STAGES[i].emoji} Votre île devient : ${STAGES[i].title} !`);
+      confetti();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Le village dessiné sur l’île
+  // ---------------------------------------------------------------------------
+
+  const VILLAGERS = ["🧍", "🧍‍♀️", "🧑", "👩", "👨", "🧒", "👵", "🧔", "👧", "👴"];
+  const MAX_SCENE_BUILDINGS = 18;
+
+  // Place n°i sur l’île : une spirale autour du centre, pour que chaque objet garde sa place.
+  function spot(i) {
+    const angle = i * 2.39996; // angle d’or : les objets se répartissent sans se superposer
+    const radius = 22 + (i % 4) * 5;
+    return { x: 50 + radius * Math.cos(angle), y: 50 + radius * 0.85 * Math.sin(angle) };
+  }
+
+  function sceneItem(className, emoji, place, extraStyle) {
+    return `<span class="${className}" style="left:${place.x}%;top:${place.y}%;${extraStyle || ""}">${emoji}</span>`;
+  }
+
+  // Redessine seulement quand le nombre de bâtiments ou d’habitants change.
+  let sceneKey = "";
+  function renderScene() {
+    const pop = population();
+    const villagers = Math.min(10, Math.round(Math.sqrt(pop) * 1.2));
+    const key = BUILDINGS.map(count).join(",") + "|" + villagers;
+    if (key === sceneKey) return;
+    sceneKey = key;
+
+    const html = [];
+    let slot = 0;
+    BUILDINGS.forEach((b) => {
+      for (let n = 0; n < Math.min(count(b), 3) && slot < MAX_SCENE_BUILDINGS; n++) {
+        html.push(sceneItem("scene-building", b.emoji, spot(slot++)));
+      }
+    });
+    for (let i = 0; i < villagers; i++) {
+      // Chaque habitant se promène à son rythme (durée et sens différents).
+      const wander = `--dx:${(i % 2 ? 1 : -1) * (8 + (i % 3) * 6)}px;--dur:${3 + (i % 4)}s`;
+      html.push(sceneItem("villager", VILLAGERS[i % VILLAGERS.length], spot(MAX_SCENE_BUILDINGS + i * 3 + 1), wander));
+    }
+    $("scene").innerHTML = html.join("");
+  }
+
+  // Les nouveaux arrivants débarquent par le bas de l’île puis rejoignent le village.
+  function welcome(newcomers) {
+    const scene = $("arrivals"); // calque à part : le village peut se redessiner sans les effacer
+    for (let i = 0; i < Math.min(newcomers, 5); i++) {
+      const el = document.createElement("span");
+      el.className = "newcomer";
+      el.textContent = VILLAGERS[Math.floor(Math.random() * VILLAGERS.length)];
+      el.style.left = 40 + Math.random() * 20 + "%";
+      el.style.setProperty("--to-x", (Math.random() - 0.5) * 120 + "px");
+      el.style.animationDelay = i * 0.15 + "s";
+      el.addEventListener("animationend", () => el.remove());
+      scene.appendChild(el);
+    }
+    const rect = $("island").getBoundingClientRect();
+    floatText(rect.left + rect.width / 2, rect.top + rect.height * 0.8, `+${newcomers} 👥 Bienvenue !`);
+
+    const counter = $("population");
+    counter.classList.remove("bump");
+    void counter.offsetWidth; // relance l’animation
+    counter.classList.add("bump");
+  }
+
+  function confetti() {
+    const pieces = ["🎉", "🌺", "🐚", "⭐", "🥥", "🎊"];
+    for (let i = 0; i < 30; i++) {
+      const el = document.createElement("span");
+      el.className = "confetti";
+      el.textContent = pieces[i % pieces.length];
+      el.style.left = Math.random() * 100 + "%";
+      el.style.animationDelay = Math.random() * 0.6 + "s";
+      el.style.animationDuration = 2 + Math.random() * 1.5 + "s";
+      el.addEventListener("animationend", () => el.remove());
+      document.body.appendChild(el);
     }
   }
 
@@ -228,6 +311,7 @@
     if (building && state.coins >= price(building)) {
       state.coins -= price(building);
       state.owned[building.id] = count(building) + 1;
+      welcome(building.pop);
       checkStage();
     }
 

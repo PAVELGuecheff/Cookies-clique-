@@ -27,9 +27,12 @@
   <main class="layout">
     <section class="island-zone">
       <h1 id="stage-title">Îlot désert</h1>
+      <div class="progress" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
       <p class="stage-next" id="stage-next"></p>
       <button class="island" id="island" type="button" aria-label="Cliquer sur l’île pour gagner des pièces">
-        <span id="island-emoji">🏝️</span>
+        <span class="scene" id="scene" aria-hidden="true"></span>
+        <span class="scene" id="arrivals" aria-hidden="true"></span>
+        <span class="island-center" id="island-emoji">🏝️</span>
       </button>
       <p class="click-hint">Touchez l’île : <strong id="click-value">+1</strong> 🪙 <span class="combo" id="combo"></span></p>
       <p class="buffs" id="buffs" hidden></p>
