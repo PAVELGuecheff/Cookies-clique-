@@ -740,3 +740,26 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .records div { padding: 6px 10px 8px; background: var(--paper); box-shadow: var(--outline); }
 .records dt { font-size: .8rem; color: var(--muted); }
 .records dd { margin: 0; font-size: 1.25rem; }
+
+/* Satiété et commandes (onglet Marché) */
+.satiety, .order { grid-template-columns: 48px minmax(0, 1fr); margin-bottom: 16px; }
+.people-big { width: 35px; justify-self: center; }
+.order-icon { width: 48px; }
+.item-effect.bad { color: var(--coral); }
+.satiety .bar-fill { background: var(--green); }
+.satiety.full .bar-fill { background: var(--coral); }
+.order { background: #fff1c9; }
+.order-actions { grid-column: 1 / -1; display: flex; gap: 12px; }
+.order-actions button { flex: 1; }
+.refuse {
+  padding: 8px;
+  border: none;
+  background: var(--paper);
+  box-shadow: var(--outline), 0 5px var(--ink);
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.refuse:active { transform: translateY(3px); box-shadow: var(--outline), 0 2px var(--ink); }
+.auto-sell { flex-wrap: wrap; }
+.auto-sell button { font-size: .9rem; white-space: nowrap; }

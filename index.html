@@ -87,6 +87,28 @@
         <h2>Marché</h2>
         <p class="panel-intro">Vos bâtiments récoltent des ressources. Vendez-les quand le prix monte, avant que le stock déborde.</p>
         <p class="panel-note">Nouveaux prix dans <strong id="market-timer"></strong></p>
+        <div class="card satiety" id="satiety" hidden>
+          <img class="px people-big" data-sprite="habitant" data-look="2" alt="">
+          <span class="item-text">
+            <span class="item-name">Satiété <span id="satiety-value"></span></span>
+            <span class="bar"><span class="bar-fill" id="satiety-fill"></span></span>
+            <span class="item-effect" id="satiety-label"></span>
+            <span class="item-info">L’île mange <span id="satiety-need"></span> par seconde : du poisson d’abord, puis des noix de coco.</span>
+          </span>
+        </div>
+        <div class="card order" id="order" hidden>
+          <img class="px order-icon" data-sprite="bateau" alt="">
+          <span class="item-text">
+            <span class="item-name">Commande d’un navire marchand</span>
+            <span class="item-info" id="order-text"></span>
+            <span class="item-info">Stock réuni : <span id="order-stock"></span> · repart dans <span id="order-time"></span></span>
+            <span class="bar"><span class="bar-fill" id="order-fill"></span></span>
+          </span>
+          <span class="order-actions">
+            <button type="button" class="sell" data-order="deliver">Livrer</button>
+            <button type="button" class="refuse" data-order="refuse">Refuser</button>
+          </span>
+        </div>
         <p class="pop-bonus" id="auto-sell-note" hidden>Négociant : <span id="auto-sell-total">0</span> pièces gagnées en ventes automatiques</p>
         <div class="cards" id="market"></div>
       </div>

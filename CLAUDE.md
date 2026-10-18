@@ -12,11 +12,13 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
 - `game.js` : toute la logique, dans une seule fonction `(function(){ "use strict"; … })();`.
   Les données d’équilibrage sont en haut : `BUILDINGS`, `UPGRADES` (+ `BUILDING_UPGRADES`), `STAGES`,
   les réglages des événements (`BOTTLE`, `BOAT`, `FRENZY`, `GOLD_CLICK`) et de l’économie
-  (`SYNERGIES`, `JOBS`, `RESOURCES`, `MARKET`, `BANK`, `TABS`).
+  (`SYNERGIES`, `JOBS`, `RESOURCES`, `MARKET`, `AUTO_SELL`, `FOOD`, `SATIETY_LEVELS`, `ORDERS`, `BANK`, `TABS`).
+- Nourriture : dès la 1re cabane de pêcheur, l’île mange (`feedVillagers()` dans `updateEconomy()`), la satiété
+  module la production. Les commandes de navires (`state.order`, `checkOrder()`) se livrent dans l’onglet Marché.
 - La boutique a des onglets : Construire, Métiers, Marché, Coffre (débloqués au fil de la partie), Stats.
 - Rentabilité : `buildingPayback()` / `upgradePayback()` essaient l’achat, mesurent le gain de `perSecond()` puis annulent.
   Elles servent au badge « Meilleur achat » et à l’intendant en mode « le plus rentable ».
-- `earn(montant, source)` : la source (`batiments`, `clics`, `marche`, `evenements`) alimente l’onglet Stats.
+- `earn(montant, source)` : la source (`batiments`, `clics`, `marche`, `evenements`, `commandes`) alimente l’onglet Stats.
 
 ## Technique
 - HTML/CSS/JS sans framework ni npm.

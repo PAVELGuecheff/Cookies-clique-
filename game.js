@@ -96,16 +96,28 @@
 
   // Ressources : récoltées par un bâtiment, stockées (stock limité) puis vendues au marché.
   const RESOURCES = [
-    { id: "bois",    name: "Bois flotté",  from: "hutte",   perSecond: 0.05, price: 2 },
-    { id: "poisson", name: "Poisson",      from: "pecheur", perSecond: 0.2,  price: 6 },
-    { id: "noix",    name: "Noix de coco", from: "cocos",   perSecond: 0.3,  price: 12 },
+    { id: "bois",    name: "Bois flotté",  plural: "bois flotté",  from: "hutte",   perSecond: 0.05, price: 2 },
+    { id: "poisson", name: "Poisson",      plural: "poissons",     from: "pecheur", perSecond: 0.2,  price: 6 },
+    { id: "noix",    name: "Noix de coco", plural: "noix de coco", from: "cocos",   perSecond: 0.3,  price: 12 },
   ];
   const STORAGE = { base: 50, perBuilding: 25 };
   const MARKET = { changeEvery: 30, min: 0.4, max: 2.2 }; // les prix varient de ×0,4 à ×2,2
   const DEMAND_PER_HABITANT = 0.01; // +1 % de prix de vente par habitant (plus d’acheteurs)
   // Vendeur automatique (amélioration « Négociant ») : il vend quand le prix atteint le seuil choisi,
   // ou quand le stock est plein, et garde une commission.
-  const AUTO_SELL = { commission: 0.1, thresholds: [1, 1.2, 1.5, 1.8] };
+  const AUTO_SELL = { commission: 0.1, thresholds: [1, 1.2, 1.5, 1.8], keeps: [0, 0.25, 0.5] };
+
+  // Nourriture : dès la première cabane de pêcheur, chaque habitant mange du poisson, puis des noix
+  // de coco s’il n’y a plus de poisson. La satiété rejoint la part de besoins couverts en ~1 minute.
+  const FOOD = { perHabitantPerMinute: 1, foods: ["poisson", "noix"], catchUpSeconds: 60 };
+  const SATIETY_LEVELS = [
+    { min: 80, mult: 0.1,  label: "bien nourris", effect: "production +10\u00a0%" },
+    { min: 30, mult: 0,    label: "rassasiés",    effect: "pas de bonus" },
+    { min: 0,  mult: -0.2, label: "affamés",      effect: "production −20\u00a0%" },
+  ];
+
+  // Commandes des navires marchands : livrer une quantité avant la fin du délai, payée 2 à 3 fois le prix.
+  const ORDERS = { firstDelay: 90, minDelay: 180, maxDelay: 360, duration: 300, minMult: 2, maxMult: 3 };
 
   // Coffre : les pièces placées rapportent des intérêts, jusqu’à une heure de production.
   const BANK = { ratePerMinute: 0.01, capacityHours: 1, minCapacity: 1000 };
@@ -125,6 +137,7 @@
     { id: "clics",      name: "Clics",                 icon: "piece" },
     { id: "marche",     name: "Marché",                icon: "sac" },
     { id: "evenements", name: "Bouteilles et bateaux", icon: "bouteille" },
+    { id: "commandes",  name: "Commandes livrées",     icon: "bateau" },
     { id: "coffre",     name: "Intérêts du coffre",    icon: "coffre" },
   ];
 
@@ -141,12 +154,16 @@
       res: { bois: 0, poisson: 0, noix: 0 },
       market: { bois: { f: 1, trend: 0 }, poisson: { f: 1, trend: 0 }, noix: { f: 1, trend: 0 } },
       bank: 0,
-      autoSell: { bois: { on: false, min: 1.2 }, poisson: { on: false, min: 1.2 }, noix: { on: false, min: 1.2 } },
+      autoSell: {
+        bois: { on: false, min: 1.2, keep: 0 }, poisson: { on: false, min: 1.2, keep: 0 }, noix: { on: false, min: 1.2, keep: 0 },
+      },
+      satiety: 100, // en %
+      order: null,  // commande en cours : { res, qty, reward, expiresAt }
       autoSellTotal: 0,
       autoMode: "cheap", // l’intendant achète le moins cher ("cheap") ou le plus rentable ("best")
       stats: {
-        sources: { batiments: 0, clics: 0, marche: 0, evenements: 0, coffre: 0 },
-        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, playTime: 0,
+        sources: { batiments: 0, clics: 0, marche: 0, evenements: 0, commandes: 0, coffre: 0 },
+        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0,
       },
       tabsSeen: { build: true },
     };
@@ -196,7 +213,13 @@
     b.cps * ownedUpgrades().reduce((m, u) => (u.effect.building === b.id ? m * 2 : m), 1) * (1 + synergyBonus(b));
   const popBonus = () => ownedUpgrades().reduce((sum, u) => sum + (u.effect.popBonus || 0), 0) * population();
   const perSecond = () => BUILDINGS.reduce((sum, b) => sum + buildingCps(b) * count(b), 0)
-    * (1 + popBonus()) * (1 + jobEffect("pecheurs"));
+    * (1 + popBonus()) * (1 + jobEffect("pecheurs")) * (1 + satietyMult());
+
+  // Nourriture
+  const foodActive = () => (state.owned.pecheur || 0) > 0;
+  const foodNeed = () => (population() * FOOD.perHabitantPerMinute) / 60; // par seconde
+  const satietyLevel = () => SATIETY_LEVELS.find((level) => state.satiety >= level.min);
+  const satietyMult = () => (foodActive() ? satietyLevel().mult : 0);
 
   // Ressources : la récolte suit les améliorations et synergies de son bâtiment.
   const buildingOf = (r) => BUILDINGS.find((b) => b.id === r.from);
@@ -216,11 +239,31 @@
     RESOURCES.forEach((r) => {
       state.res[r.id] = Math.min(storage(r), state.res[r.id] + resourceRate(r) * seconds);
     });
+    feedVillagers(seconds);
     const capacity = bankCapacity();
     if (state.bank > 0 && state.bank < capacity) {
       const grown = Math.min(capacity, state.bank * Math.pow(1 + bankRatePerMinute(), seconds / 60));
       state.stats.sources.coffre += grown - state.bank;
       state.bank = grown;
+    }
+  }
+
+  // Les habitants mangent ; la satiété se rapproche de la part de leurs besoins couverte.
+  function feedVillagers(seconds) {
+    if (!foodActive() || seconds <= 0) return;
+    const need = foodNeed() * seconds;
+    let eaten = 0;
+    FOOD.foods.forEach((id) => {
+      const take = Math.min(state.res[id], need - eaten);
+      state.res[id] -= take;
+      eaten += take;
+    });
+    const fed = need > 0 ? eaten / need : 1;
+    const before = satietyLevel();
+    state.satiety += (fed * 100 - state.satiety) * Math.min(1, seconds / FOOD.catchUpSeconds);
+    const after = satietyLevel();
+    if (after !== before && typeof toast === "function") {
+      toast(`${icon("poisson")} Vos habitants sont ${after.label} : ${after.effect}`);
     }
   }
 
@@ -286,7 +329,8 @@
   function earn(amount, source) {
     state.coins += amount;
     state.totalEarned += amount;
-    state.stats.sources[source || "batiments"] += amount;
+    const key = source || "batiments";
+    state.stats.sources[key] = (state.stats.sources[key] || 0) + amount; // || 0 : anciennes sauvegardes
   }
 
   // ---------------------------------------------------------------------------
@@ -843,6 +887,42 @@
       changePrices();
       nextMarketAt = now + MARKET.changeEvery * 1000;
     }
+    checkOrder(now);
+  }
+
+  // Un navire marchand passe commande de temps en temps (seulement quand le marché est ouvert).
+  let nextOrderAt = performance.now() + ORDERS.firstDelay * 1000;
+  function checkOrder(now) {
+    if (state.order && Date.now() > state.order.expiresAt) {
+      state.order = null;
+      toast(`${icon("bateau")} Le navire marchand est reparti sans sa commande`);
+    }
+    if (state.order || now < nextOrderAt || !foodActive()) return;
+    nextOrderAt = now + randomBetween(ORDERS.minDelay, ORDERS.maxDelay) * 1000;
+    const options = RESOURCES.filter((r) => count(buildingOf(r)) > 0);
+    const r = options[Math.floor(Math.random() * options.length)];
+    // Une quantité qu’on peut réunir en 2 à 4 minutes de récolte, sans dépasser le stock maximum.
+    const qty = Math.min(storage(r), Math.max(20, Math.round(resourceRate(r) * randomBetween(120, 240))));
+    const reward = qty * sellPrice(r) * randomBetween(ORDERS.minMult, ORDERS.maxMult);
+    state.order = { res: r.id, qty, reward, expiresAt: Date.now() + ORDERS.duration * 1000 };
+    toast(`${icon("bateau")} Un navire marchand commande ${format(qty)} ${r.plural} !`);
+  }
+
+  function onOrderClick(event) {
+    const button = event.target.closest("[data-order]");
+    if (!button || button.disabled || !state.order) return;
+    const order = state.order;
+    if (button.dataset.order === "deliver") {
+      if (state.res[order.res] < order.qty) return;
+      state.res[order.res] -= order.qty;
+      earn(order.reward, "commandes");
+      state.stats.orders = (state.stats.orders || 0) + 1;
+      const rect = button.getBoundingClientRect();
+      floatText(rect.left + rect.width / 2, rect.top, `+${format(order.reward)} ${COIN}`);
+      toast(`${icon("bateau")} Commande livrée : +${format(order.reward)} ${COIN}`);
+    }
+    state.order = null;
+    render();
   }
 
   // ---------------------------------------------------------------------------
@@ -851,7 +931,7 @@
 
   let activeTab = "build";
   let nextMarketAt = performance.now() + MARKET.changeEvery * 1000;
-  const pct = (x) => format(Math.abs(x) * 100, true) + " %";
+  const pct = (x) => format(Math.abs(x) * 100, true) + "\u00a0%"; // espace insécable : « % » reste collé au nombre
 
   // Les cartes sont créées une fois, puis seuls leurs textes sont mis à jour.
   function buildPanels() {
@@ -885,8 +965,9 @@
         </span>
         <button type="button" class="sell" data-sell="${r.id}">Vendre<span class="sell-total"></span></button>
         <span class="auto-sell" hidden>
-          <button type="button" class="auto-sell-toggle" data-auto-sell="${r.id}" aria-pressed="false">${icon("balance")}<span>Vente auto</span></button>
+          <button type="button" class="auto-sell-toggle" data-auto-sell="${r.id}" aria-pressed="false">${icon("balance")}<span>Auto</span></button>
           <button type="button" class="auto-sell-min" data-auto-min="${r.id}" aria-label="Changer le prix minimum de vente"></button>
+          <button type="button" class="auto-sell-min" data-auto-keep="${r.id}" aria-label="Changer la réserve gardée"></button>
         </span>
       </div>`).join("");
   }
@@ -906,7 +987,8 @@
       $("panel-" + t.id).hidden = t.id !== activeTab;
     });
     // Un point signale un stock plein au marché.
-    const full = RESOURCES.some((r) => count(buildingOf(r)) > 0 && state.res[r.id] >= storage(r));
+    const full = RESOURCES.some((r) => count(buildingOf(r)) > 0 && state.res[r.id] >= storage(r)) ||
+      !!state.order || (foodActive() && satietyLevel().mult < 0);
     document.querySelector('[data-tab="market"] .tab-dot').hidden = !full || activeTab === "market";
 
     if (activeTab === "jobs") renderJobs();
@@ -925,11 +1007,14 @@
 
   function renderStats() {
     const st = state.stats;
-    const tracked = SOURCES.reduce((sum, src) => sum + st.sources[src.id], 0);
+    const tracked = SOURCES.reduce((sum, src) => sum + (st.sources[src.id] || 0), 0);
     // Parties commencées avant le suivi : la différence est affichée à part.
     const before = Math.max(0, state.totalEarned - (tracked - st.sources.coffre));
     const total = tracked + before || 1;
-    const rows = SOURCES.map((src) => statRow(src.icon, src.name, format(st.sources[src.id]), st.sources[src.id] / total));
+    const rows = SOURCES.map((src) => {
+      const value = st.sources[src.id] || 0;
+      return statRow(src.icon, src.name, format(value), value / total);
+    });
     if (before >= 1) rows.push(statRow("puits", "Avant le suivi", format(before), before / total));
     $("stats-sources").innerHTML = rows.join("");
 
@@ -947,6 +1032,7 @@
       ["Meilleur combo", "×" + format(1 + Math.min(st.bestCombo, COMBO_MAX) / COMBO_MAX, true)],
       ["Bouteilles attrapées", format(st.bottles)],
       ["Bateaux accueillis", format(st.boats)],
+      ["Commandes livrées", format(st.orders || 0)],
     ];
     $("stats-records").innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
   }
@@ -992,11 +1078,39 @@
       const auto = state.autoSell[r.id];
       row.querySelector(".auto-sell").hidden = !hasAutoSell();
       row.querySelector(".auto-sell-toggle").setAttribute("aria-pressed", String(auto.on));
-      row.querySelector(".auto-sell-min").textContent = `si prix ≥ ×${format(auto.min, true)}`;
+      row.querySelector("[data-auto-min]").textContent = `Prix ≥ ×${format(auto.min, true)}`;
+      row.querySelector("[data-auto-keep]").textContent = `Réserve ${Math.round((auto.keep || 0) * 100)}\u00a0%`;
     });
     $("auto-sell-note").hidden = !hasAutoSell();
     $("auto-sell-total").textContent = format(state.autoSellTotal);
     $("market-timer").textContent = Math.max(0, Math.ceil((nextMarketAt - performance.now()) / 1000)) + " s";
+    renderSatiety();
+    renderOrder();
+  }
+
+  function renderSatiety() {
+    $("satiety").hidden = !foodActive();
+    if (!foodActive()) return;
+    const level = satietyLevel();
+    $("satiety-value").textContent = Math.round(state.satiety) + " %";
+    $("satiety-label").textContent = `Habitants ${level.label} : ${level.effect}`;
+    $("satiety-label").className = "item-effect" + (level.mult < 0 ? " bad" : "");
+    $("satiety-fill").style.width = Math.max(0, Math.min(100, state.satiety)) + "%";
+    $("satiety").classList.toggle("full", level.mult < 0);
+    $("satiety-need").textContent = format(foodNeed(), true);
+  }
+
+  function renderOrder() {
+    const order = state.order;
+    $("order").hidden = !order;
+    if (!order) return;
+    const r = RESOURCES.find((x) => x.id === order.res);
+    const stock = state.res[r.id];
+    $("order-text").innerHTML = `${format(order.qty)} ${r.plural} contre <strong>${format(order.reward)}</strong> ${COIN}`;
+    $("order-stock").textContent = `${format(Math.min(stock, order.qty))} / ${format(order.qty)}`;
+    $("order-fill").style.width = Math.min(100, (stock / order.qty) * 100) + "%";
+    $("order-time").textContent = formatDuration(Math.max(0, (order.expiresAt - Date.now()) / 1000));
+    document.querySelector('[data-order="deliver"]').disabled = stock < order.qty;
   }
 
   function renderBank() {
@@ -1042,9 +1156,9 @@
     render();
   }
 
-  // Vend tout le stock entier d’une ressource ; rate = part du prix gardée (1 = tout).
-  function sellAll(r, rate) {
-    const qty = Math.floor(state.res[r.id]);
+  // Vend le stock d’une ressource sauf « keep » unités ; rate = part du prix gardée (1 = tout).
+  function sellAll(r, rate, keep) {
+    const qty = Math.floor(state.res[r.id] - (keep || 0));
     if (qty < 1) return 0;
     const gain = qty * sellPrice(r) * rate;
     state.res[r.id] -= qty;
@@ -1069,6 +1183,15 @@
       render();
       return;
     }
+    const keep = event.target.closest("[data-auto-keep]");
+    if (keep) {
+      // Réserve gardée pour nourrir l’île : 0 % → 25 % → 50 % du stock.
+      const setting = state.autoSell[keep.dataset.autoKeep];
+      const list = AUTO_SELL.keeps;
+      setting.keep = list[(list.indexOf(setting.keep || 0) + 1) % list.length];
+      render();
+      return;
+    }
     const button = event.target.closest("[data-sell]");
     if (!button || button.disabled) return;
     const gain = sellAll(RESOURCES.find((x) => x.id === button.dataset.sell), 1);
@@ -1086,7 +1209,9 @@
       if (!setting.on) return;
       const goodPrice = state.market[r.id].f >= setting.min - 0.001;
       const full = state.res[r.id] >= storage(r);
-      if (goodPrice || full) state.autoSellTotal += sellAll(r, 1 - AUTO_SELL.commission);
+      // Il garde la réserve choisie, plus ce qu’il faut pour la commande en cours.
+      const reserved = (setting.keep || 0) * storage(r) + (state.order && state.order.res === r.id ? state.order.qty : 0);
+      if (goodPrice || full) state.autoSellTotal += sellAll(r, 1 - AUTO_SELL.commission, reserved);
     });
   }
 
@@ -1164,6 +1289,7 @@
   $("tabs").addEventListener("click", onTabClick);
   $("jobs").addEventListener("click", onJobClick);
   $("market").addEventListener("click", onSellClick);
+  $("order").addEventListener("click", onOrderClick);
   $("bank-actions").addEventListener("click", onBankClick);
   setInterval(save, SAVE_EVERY_MS);
   setInterval(autoBuy, 1000);
