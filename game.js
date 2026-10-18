@@ -114,6 +114,9 @@
     { id: "nuit",       name: "Nuit blanche",         desc: "Jouer entre 20 h et 7 h",               test: () => document.documentElement.classList.contains("night") },
     { id: "dore",       name: "Pêche miraculeuse",    desc: "Attraper un poisson doré",              test: () => (state.stats.goldFish || 0) >= 1 },
     { id: "voyageur",   name: "Grand voyageur",       desc: "Réussir 5 expéditions",                 test: () => (state.stats.expeditions || 0) >= 5 },
+    { id: "niveau",     name: "Chef-d’œuvre",         desc: "Monter un bâtiment au niveau 5",        test: () => BUILDINGS.some((b) => level(b) >= LEVELS.max) },
+    { id: "celebre",    name: "Tapis rouge",          desc: "Accueillir un habitant célèbre",        test: () => (state.stats.celebs || 0) >= 1 },
+    { id: "vip",        name: "Salon VIP",            desc: "Garder 3 habitants célèbres",           test: () => state.celebs.length >= CELEBS.slots },
     { id: "chance",     name: "Chanceux",             desc: "Tourner la roue 7 fois",                test: () => (state.stats.spins || 0) >= 7 },
   ];
 
@@ -156,6 +159,23 @@
     { min: 80, mult: 0.1,  label: "bien nourris", effect: "production +10\u00a0%" },
     { min: 30, mult: 0,    label: "rassasiés",    effect: "pas de bonus" },
     { min: 0,  mult: -0.2, label: "affamés",      effect: "production −20\u00a0%" },
+  ];
+
+  // Niveaux de bâtiment : à partir de 10 exemplaires, on améliore tout un type (niveau 1 à 5).
+  // Chaque niveau multiplie la production de ce type par 1,5. Prix = prix de départ × costMult.
+  const LEVELS = { max: 5, mult: 1.5, unlockCount: 10, costMult: [100, 1000, 10000, 100000] };
+
+  // Habitants célèbres : un visiteur passe de temps en temps ; on peut en garder 3 à la fois.
+  const CELEBS = { minPop: 50, firstDelay: 180, minDelay: 480, maxDelay: 900, decide: 120, slots: 3 };
+  const CELEBRITIES = [
+    { id: "capitaine",  name: "Capitaine Marlin",  look: 0, info: "Bateaux de touristes ×2",            effect: { boat: 1 } },
+    { id: "inventrice", name: "Ada l’inventrice",  look: 4, info: "Production +15\u00a0%",               effect: { prod: 0.15 } },
+    { id: "chef",       name: "Chef Coco",         look: 2, info: "Les habitants mangent 30\u00a0% de moins", effect: { food: -0.3 } },
+    { id: "marchande",  name: "Marchande Perle",   look: 6, info: "Prix de vente +25\u00a0%",           effect: { sell: 0.25 } },
+    { id: "architecte", name: "Archi Bâtisse",     look: 5, info: "Bâtiments 10\u00a0% moins chers",     effect: { price: -0.1 } },
+    { id: "vieuxloup",  name: "Vieux Loup",        look: 3, info: "Pêche ×2",                            effect: { fish: 1 } },
+    { id: "banquiere",  name: "Banquière Doublon", look: 7, info: "Capacité du coffre ×2",               effect: { bank: 1 } },
+    { id: "chanteuse",  name: "Lola la chanteuse", look: 1, info: "Bouteilles 40\u00a0% plus fréquentes", effect: { bottle: -0.4 } },
   ];
 
   // Pêche à la ligne : un mini-jeu de réflexe, utilisable toutes les 45 secondes.
@@ -226,12 +246,15 @@
       fishReadyAt: 0,     // pêche à la ligne de nouveau possible à partir de (Date.now)
       expedition: null,   // bateau en route : { route, res, qty, value, returnAt }
       expeditionRes: "poisson", // ressource choisie pour la prochaine expédition
+      levels: {},     // niveau de chaque type de bâtiment (1 par défaut)
+      celebs: [],     // habitants célèbres présents (identifiants)
+      visitor: null,  // visiteur célèbre en attente : { id, expiresAt }
       order: null,  // commande en cours : { res, qty, reward, expiresAt }
       autoSellTotal: 0,
       autoMode: "cheap", // l’intendant achète le moins cher ("cheap") ou le plus rentable ("best")
       stats: {
         sources: { batiments: 0, clics: 0, marche: 0, evenements: 0, commandes: 0, coffre: 0 },
-        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0, superFrenzies: 0, spins: 0, goldFish: 0, expeditions: 0, shipwrecks: 0,
+        clicks: 0, bestCombo: 0, bottles: 0, boats: 0, orders: 0, playTime: 0, superFrenzies: 0, spins: 0, goldFish: 0, expeditions: 0, shipwrecks: 0, celebs: 0,
       },
       tabsSeen: { build: true },
     };
@@ -250,10 +273,17 @@
   const count = (b) => state.owned[b.id] || 0;
   const jobShare = (id) => (state.jobs[id] || 0) / 100;
   const jobEffect = (id) => jobShare(id) * JOBS.find((j) => j.id === id).effect;
+  // Somme d’un effet des habitants célèbres présents (ex. celebEffect("sell") = +0,25 avec la marchande).
+  const celebEffect = (key) => state.celebs.reduce((sum, id) => {
+    const celeb = CELEBRITIES.find((c) => c.id === id);
+    return sum + ((celeb && celeb.effect[key]) || 0);
+  }, 0);
+  const level = (b) => state.levels[b.id] || 1;
+  const levelCost = (b) => b.cost * LEVELS.costMult[level(b) - 1];
   const freeShare = () => 1 - JOBS.reduce((sum, j) => sum + jobShare(j.id), 0);
   // Les bâtisseurs font baisser les prix.
   const unitPrice = (b, extra) =>
-    Math.ceil(b.cost * Math.pow(PRICE_GROWTH, count(b) + extra) * (1 + jobEffect("batisseurs")));
+    Math.ceil(b.cost * Math.pow(PRICE_GROWTH, count(b) + extra) * (1 + jobEffect("batisseurs")) * (1 + celebEffect("price")));
   const population = () => BUILDINGS.reduce((sum, b) => sum + b.pop * count(b), 0);
   const ownedUpgrades = () => UPGRADES.filter((u) => state.upgrades[u.id]);
 
@@ -278,15 +308,17 @@
   const synergyBonus = (b) => SYNERGIES.reduce((sum, syn) =>
     sum + (syn.to === b.id ? syn.bonus * (state.owned[syn.from] || 0) : 0), 0);
   const buildingCps = (b) =>
-    b.cps * ownedUpgrades().reduce((m, u) => (u.effect.building === b.id ? m * 2 : m), 1) * (1 + synergyBonus(b));
+    b.cps * ownedUpgrades().reduce((m, u) => (u.effect.building === b.id ? m * 2 : m), 1) * (1 + synergyBonus(b))
+    * Math.pow(LEVELS.mult, level(b) - 1);
   const popBonus = () => ownedUpgrades().reduce((sum, u) => sum + (u.effect.popBonus || 0), 0) * population();
   const perSecond = () => BUILDINGS.reduce((sum, b) => sum + buildingCps(b) * count(b), 0)
-    * (1 + popBonus()) * (1 + jobEffect("pecheurs")) * (1 + satietyMult()) * (1 + achievementBonus());
+    * (1 + popBonus()) * (1 + jobEffect("pecheurs")) * (1 + satietyMult()) * (1 + achievementBonus())
+    * (1 + celebEffect("prod"));
   const achievementBonus = () => ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length * ACHIEVEMENT_BONUS;
 
   // Nourriture
   const foodActive = () => (state.owned.pecheur || 0) > 0;
-  const foodNeed = () => (population() * FOOD.perHabitantPerMinute) / 60; // par seconde
+  const foodNeed = () => (population() * FOOD.perHabitantPerMinute * (1 + celebEffect("food"))) / 60; // par seconde
   const satietyLevel = () => SATIETY_LEVELS.find((level) => state.satiety >= level.min);
   const satietyMult = () => (foodActive() ? satietyLevel().mult : 0);
 
@@ -294,13 +326,14 @@
   const buildingOf = (r) => BUILDINGS.find((b) => b.id === r.from);
   function resourceRate(r) {
     const b = buildingOf(r);
-    return r.perSecond * count(b) * (buildingCps(b) / b.cps) * (1 + jobEffect("cueilleurs"));
+    return r.perSecond * count(b) * (buildingCps(b) / b.cps) * (1 + jobEffect("cueilleurs"))
+      * (r.id === "poisson" ? 1 + celebEffect("fish") : 1);
   }
   const storage = (r) => STORAGE.base + STORAGE.perBuilding * count(buildingOf(r));
   const sellPrice = (r) => r.price * state.market[r.id].f * (1 + population() * DEMAND_PER_HABITANT)
-    * (1 + jobEffect("marchands"));
+    * (1 + jobEffect("marchands")) * (1 + celebEffect("sell"));
 
-  const bankCapacity = () => Math.max(BANK.minCapacity, perSecond() * 3600 * BANK.capacityHours);
+  const bankCapacity = () => Math.max(BANK.minCapacity, perSecond() * 3600 * BANK.capacityHours) * (1 + celebEffect("bank"));
   const bankRatePerMinute = () => BANK.ratePerMinute * (1 + jobEffect("marchands"));
 
   // Récolte et intérêts sur une durée donnée (aussi utilisé pour l’absence).
@@ -414,12 +447,14 @@
   const PEOPLE = icon("habitant", 1, "px people-icon");
   const intFmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
   const decFmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+  const dec2Fmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
   const BIG = [[1e12, "Bn"], [1e9, "Md"], [1e6, "M"]];
 
   function format(n, decimals) {
     for (const [size, unit] of BIG) {
       if (n >= size) return decFmt.format(Math.floor(n / size * 10) / 10) + " " + unit;
     }
+    if (decimals && n < 1) return dec2Fmt.format(Math.floor(n * 100) / 100); // petites valeurs : 2 décimales
     if (decimals && n < 100) return decFmt.format(Math.floor(n * 10) / 10);
     return intFmt.format(Math.floor(n));
   }
@@ -432,7 +467,7 @@
           <span class="best-badge" hidden>Meilleur achat</span>
           <span class="item-icon">${icon(b.id)}</span>
           <span class="item-text">
-            <span class="item-name">${b.name}</span>
+            <span class="item-name">${b.name} <span class="level-tag" hidden></span></span>
             <span class="item-info">+<span class="cps"></span> ${COIN}/s · +${b.pop} ${PEOPLE}</span>
             <span class="item-synergy" hidden></span>
             <span class="payback"></span>
@@ -440,8 +475,13 @@
           </span>
           <span class="item-count"></span>
         </button>
-        <button class="auto-toggle" type="button" data-auto="${b.id}" aria-pressed="false" hidden
-          aria-label="Achat automatique : ${b.name}">${icon("engrenage")}<span>Auto</span></button>
+        <span class="row-side">
+          <button class="auto-toggle" type="button" data-auto="${b.id}" aria-pressed="false" hidden
+            aria-label="Achat automatique : ${b.name}">${icon("engrenage")}<span>Auto</span></button>
+          <button class="level-up" type="button" data-level="${b.id}" hidden aria-label="Monter le niveau : ${b.name}">
+            ${icon("etoile")}<span class="level-next"></span><span class="level-cost"></span>
+          </button>
+        </span>
       </div>`).join("");
 
     $("upgrades").innerHTML = UPGRADES.map((u) => `
@@ -509,6 +549,17 @@
         synergyEl.hidden = !synergy;
       }
       el.querySelector(".item-count").textContent = count(b) || "";
+
+      // Niveau : visible à partir de 10 exemplaires.
+      const lv = level(b);
+      const tag = el.querySelector(".level-tag");
+      tag.hidden = lv < 2;
+      tag.textContent = "Niv. " + lv;
+      const levelButton = document.querySelector(`[data-level="${b.id}"]`);
+      levelButton.hidden = count(b) < LEVELS.unlockCount;
+      levelButton.disabled = lv >= LEVELS.max || state.coins < levelCost(b);
+      levelButton.querySelector(".level-next").textContent = lv >= LEVELS.max ? "Niv. max" : `Niv. ${lv + 1}`;
+      levelButton.querySelector(".level-cost").textContent = lv >= LEVELS.max ? "" : format(levelCost(b));
 
       const toggle = document.querySelector(`[data-auto="${b.id}"]`);
       toggle.hidden = !automation;
@@ -653,7 +704,7 @@
   function renderScene() {
     const pop = population();
     const villagers = Math.min(MAX_SCENE_VILLAGERS, Math.round(Math.sqrt(pop) * 1.2));
-    const key = stageIndex() + "|" + BUILDINGS.map(count).join(",") + "|" + villagers;
+    const key = stageIndex() + "|" + BUILDINGS.map((b) => count(b) + ":" + level(b)).join(",") + "|" + villagers + "|" + state.celebs.join(",");
     if (key === sceneKey) return;
     sceneKey = key;
 
@@ -663,6 +714,8 @@
       for (let n = 0; n < Math.min(count(b), 3) && slot < MAX_SCENE_BUILDINGS; n++) {
         const place = SLOTS[slot++];
         html.push(placeSprite(b.id, place.x, place.y, "scene-building"));
+        // Une étoile au-dessus des bâtiments de niveau 2 et plus.
+        if (level(b) >= 2) html.push(placeSprite("etoile", place.x, place.y - art.size(b.id).h + 1, "scene-star"));
       }
     });
     // Les habitants ont toujours la même place de départ, puis se promènent à leur rythme.
@@ -676,6 +729,15 @@
       const walk = `--dx:${(i % 2 ? 1 : -1) * (4 + (i % 3) * 3)};--dur:${3 + (i % 4)}s`;
       html.push(placeSprite("habitant", x, y, "villager", i, walk));
     }
+    // Les habitants célèbres se tiennent près du repère central, une étoile au-dessus de la tête.
+    state.celebs.forEach((id, i) => {
+      const celeb = CELEBRITIES.find((c) => c.id === id);
+      if (!celeb) return;
+      const x = ISLAND.cx - 14 + i * 14;
+      const y = ISLAND.cy + 20;
+      html.push(placeSprite("habitant", x, y, "villager celeb", celeb.look, "--dx:3;--dur:2s"));
+      html.push(placeSprite("etoile", x, y - 10, "scene-star"));
+    });
     $("scene").innerHTML = html.join("");
   }
 
@@ -826,6 +888,13 @@
     const building = BUILDINGS.find((b) => b.id === button.dataset.building);
     if (building) buy(building, buyQty(building));
 
+    const leveled = BUILDINGS.find((b) => b.id === button.dataset.level);
+    if (leveled && level(leveled) < LEVELS.max && state.coins >= levelCost(leveled)) {
+      state.coins -= levelCost(leveled);
+      state.levels[leveled.id] = level(leveled) + 1;
+      toast(`${icon(leveled.id)} ${leveled.name} niveau ${level(leveled)} : production ×${format(Math.pow(LEVELS.mult, level(leveled) - 1), true)}`);
+    }
+
     if (button.dataset.auto) {
       const id = button.dataset.auto;
       state.auto[id] = !state.auto[id];
@@ -956,7 +1025,7 @@
     });
     el.addEventListener("click", () => {
       boatOnScreen = false;
-      const gain = Math.max(50, perSecond() * 120 + clickValue() * 25);
+      const gain = Math.max(50, perSecond() * 120 + clickValue() * 25) * (1 + celebEffect("boat"));
       earn(gain, "evenements");
       state.stats.boats++;
       rewardAt(el, "+" + format(gain) + " " + COIN);
@@ -969,7 +1038,7 @@
   function checkEvents(now) {
     if (!bottleOnScreen && now >= nextBottleAt) {
       spawnBottle();
-      nextBottleAt = now + randomBetween(BOTTLE.minDelay, BOTTLE.maxDelay) * 1000;
+      nextBottleAt = now + randomBetween(BOTTLE.minDelay, BOTTLE.maxDelay) * 1000 * (1 + celebEffect("bottle"));
     }
     if (!boatOnScreen && now >= nextBoatAt) {
       spawnBoat();
@@ -982,6 +1051,7 @@
     }
     checkOrder(now);
     checkExpedition();
+    checkVisitor(now);
   }
 
   // Un navire marchand passe commande de temps en temps (seulement quand le marché est ouvert).
@@ -1085,7 +1155,11 @@
       !!state.order || (foodActive() && satietyLevel().mult < 0);
     document.querySelector('[data-tab="market"] .tab-dot').hidden = !full || activeTab === "market";
 
-    if (activeTab === "jobs") renderJobs();
+    if (activeTab === "jobs") {
+      renderJobs();
+      renderCelebs();
+    }
+    document.querySelector('[data-tab="jobs"] .tab-dot').hidden = !state.visitor || activeTab === "jobs";
     if (activeTab === "market") renderMarket();
     if (activeTab === "bank") renderBank();
     if (activeTab === "stats") renderStats();
@@ -1623,6 +1697,78 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 6 quinquies. Habitants célèbres
+  // ---------------------------------------------------------------------------
+
+  let nextVisitorAt = performance.now() + CELEBS.firstDelay * 1000;
+  function checkVisitor(now) {
+    if (state.visitor && Date.now() > state.visitor.expiresAt) {
+      const gone = CELEBRITIES.find((c) => c.id === state.visitor.id);
+      state.visitor = null;
+      toast(`${icon("habitant", gone.look)} ${gone.name} est reparti, faute de réponse`);
+    }
+    if (state.visitor || now < nextVisitorAt || population() < CELEBS.minPop) return;
+    nextVisitorAt = now + randomBetween(CELEBS.minDelay, CELEBS.maxDelay) * 1000;
+    const candidates = CELEBRITIES.filter((c) => !state.celebs.includes(c.id));
+    if (!candidates.length) return;
+    const celeb = candidates[Math.floor(Math.random() * candidates.length)];
+    state.visitor = { id: celeb.id, expiresAt: Date.now() + CELEBS.decide * 1000 };
+    toast(`${icon("habitant", celeb.look)} ${celeb.name} débarque sur l’île ! (onglet Métiers)`);
+  }
+
+  function onCelebClick(event) {
+    const button = event.target.closest("[data-celeb]");
+    if (!button || button.disabled) return;
+    const action = button.dataset.celeb;
+    if (action === "accept" && state.visitor && state.celebs.length < CELEBS.slots) {
+      const celeb = CELEBRITIES.find((c) => c.id === state.visitor.id);
+      state.celebs.push(celeb.id);
+      state.stats.celebs = (state.stats.celebs || 0) + 1;
+      state.visitor = null;
+      toast(`${icon("habitant", celeb.look)} ${celeb.name} s’installe : ${celeb.info}`);
+    } else if (action === "refuse") {
+      state.visitor = null;
+    } else if (action.startsWith("leave:")) {
+      state.celebs = state.celebs.filter((id) => id !== action.slice(6));
+    }
+    celebKey = "";
+    render();
+  }
+
+  let celebKey = "";
+  function renderCelebs() {
+    const visitor = state.visitor && CELEBRITIES.find((c) => c.id === state.visitor.id);
+    const full = state.celebs.length >= CELEBS.slots;
+    const key = (visitor ? visitor.id + Math.ceil((state.visitor.expiresAt - Date.now()) / 1000) : "") + "|" + state.celebs.join(",");
+    if (key === celebKey) return;
+    celebKey = key;
+    const portrait = (c) => `<span class="item-icon celeb-portrait">${icon("habitant", c.look)}${icon("etoile", undefined, "px celeb-star")}</span>`;
+    $("visitor").hidden = !visitor;
+    if (visitor) {
+      $("visitor").innerHTML = `${portrait(visitor)}
+        <span class="item-text">
+          <span class="item-name">${visitor.name} débarque !</span>
+          <span class="item-effect">${visitor.info}</span>
+          <span class="item-info">${full ? "L’île est pleine : renvoyez quelqu’un ci-dessous pour l’accueillir." : "Voulez-vous l’accueillir sur l’île ?"}
+            Repart dans ${formatDuration(Math.max(0, (state.visitor.expiresAt - Date.now()) / 1000))}.</span>
+        </span>
+        <span class="order-actions">
+          <button type="button" class="sell" data-celeb="accept" ${full ? "disabled" : ""}>Accueillir</button>
+          <button type="button" class="refuse" data-celeb="refuse">Refuser</button>
+        </span>`;
+    }
+    $("celeb-count").textContent = `${state.celebs.length} / ${CELEBS.slots}`;
+    $("celebs").innerHTML = state.celebs.length
+      ? state.celebs.map((id) => {
+        const c = CELEBRITIES.find((x) => x.id === id);
+        return `<div class="card celeb-card">${portrait(c)}
+          <span class="item-text"><span class="item-name">${c.name}</span><span class="item-effect">${c.info}</span></span>
+          <button type="button" class="refuse" data-celeb="leave:${c.id}">Renvoyer</button></div>`;
+      }).join("")
+      : `<p class="panel-intro">Personne pour l’instant. Un visiteur célèbre passe de temps en temps quand l’île a plus de ${CELEBS.minPop} habitants.</p>`;
+  }
+
+  // ---------------------------------------------------------------------------
   // 7. Sauvegarde
   // ---------------------------------------------------------------------------
 
@@ -1694,6 +1840,7 @@
   $("fishing-strike").addEventListener("click", strike);
   $("fishing-close").addEventListener("click", closeFishing);
   $("expedition").addEventListener("click", onExpeditionClick);
+  $("panel-jobs").addEventListener("click", onCelebClick);
   updateDayNight();
   setInterval(updateDayNight, 60000);
 

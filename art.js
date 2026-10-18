@@ -489,6 +489,15 @@
       "..kkoouullkk..",
       "....kkkkkk....",
     ],
+    etoile: [
+      "...k...",
+      "..kyk..",
+      "kkkyykk",
+      "kyyyyyk",
+      ".kyyyk.",
+      ".kykyk.",
+      ".kk.kk.",
+    ],
     hausse: [
       "...k...",
       "..kgk..",

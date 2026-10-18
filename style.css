@@ -866,3 +866,47 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .route-res .px { width: 24px; }
 .route:enabled:active, .route-res:active { transform: translateY(3px); box-shadow: var(--outline), 0 1px var(--ink); }
 .route:disabled { cursor: not-allowed; background: #eadcbc; color: var(--muted); box-shadow: var(--outline); }
+
+/* Niveaux de bâtiment */
+.row-side { display: flex; flex-direction: column; gap: 12px; }
+.row-side:not(:has(button:not([hidden]))) { display: none; }
+.row-side .auto-toggle { flex: 1; }
+.level-up {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 58px;
+  padding: 4px 2px;
+  border: none;
+  background: #fff1c9;
+  box-shadow: var(--raised);
+  font-size: .8rem;
+  line-height: 1.1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.level-up .px { width: 21px; }
+.level-cost { color: var(--gold-text); }
+.level-up:enabled:active { transform: translateY(4px); box-shadow: var(--outline), 0 3px var(--ink); }
+.level-up:disabled { cursor: not-allowed; background: #eadcbc; color: var(--muted); }
+.level-up:disabled .px { opacity: .5; }
+.level-tag {
+  display: inline-block;
+  padding: 0 5px;
+  background: var(--gold);
+  box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink);
+  font-size: .75rem;
+  vertical-align: 2px;
+}
+.scene-star { animation: hop 1.2s steps(2) infinite; }
+
+/* Habitants célèbres */
+.visitor { grid-template-columns: 48px minmax(0, 1fr); margin-bottom: 16px; background: #fff1c9; }
+.celeb-card { grid-template-columns: 48px minmax(0, 1fr) auto; }
+.celeb-portrait { position: relative; }
+.celeb-portrait .px { width: 35px; }
+.celeb-portrait .celeb-star { position: absolute; top: -12px; right: -6px; width: 16px; }
+@media (prefers-reduced-motion: reduce) { .scene-star { animation: none; } }
