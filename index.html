@@ -3,50 +3,44 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#2bb3c0">
+  <meta name="theme-color" content="#3a2433">
   <title>Cookies Clique — L’île déserte</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏝️</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="backdrop" aria-hidden="true">
-    <div class="stars"></div>
-    <div class="sun"></div>
-    <div class="cloud c1"></div>
-    <div class="cloud c2"></div>
-    <div class="cloud c3"></div>
-    <div class="waves"><div class="wave"></div><div class="wave w2"></div></div>
-  </div>
+  <div class="backdrop" id="backdrop" aria-hidden="true"></div>
 
   <header class="stats">
     <div class="stat stat-coins">
+      <img class="px stat-icon" data-sprite="piece" alt="">
       <span class="stat-value" id="coins">0</span>
-      <span class="stat-label">🪙 pièces</span>
+      <span class="stat-label">pièces</span>
     </div>
     <div class="stat">
       <span class="stat-value" id="per-second">0</span>
       <span class="stat-label">par seconde</span>
     </div>
     <div class="stat">
+      <img class="px stat-icon" data-sprite="habitant" data-look="1" alt="">
       <span class="stat-value" id="population">0</span>
-      <span class="stat-label">👥 habitants</span>
+      <span class="stat-label">habitants</span>
     </div>
   </header>
 
   <main class="layout">
-    <section class="island-zone">
+    <section class="island-zone" id="island-zone">
       <h1 id="stage-title">Îlot désert</h1>
       <div class="progress" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
       <p class="stage-next" id="stage-next"></p>
-      <button class="island" id="island" type="button" aria-label="Cliquer sur l’île pour gagner des pièces">
+      <button class="island" id="island" type="button" aria-label="Toucher l’île pour gagner des pièces">
+        <canvas id="island-canvas"></canvas>
         <span class="scene" id="scene" aria-hidden="true"></span>
         <span class="scene" id="arrivals" aria-hidden="true"></span>
-        <span class="island-center" id="island-emoji">🏝️</span>
       </button>
-      <p class="click-hint">Touchez l’île : <strong id="click-value">+1</strong> 🪙 <span class="combo" id="combo"></span></p>
+      <p class="click-hint">Touchez l’île : <strong id="click-value">+1</strong> <img class="px coin-icon" data-sprite="piece" alt="pièces"> <span class="combo" id="combo"></span></p>
       <p class="buffs" id="buffs" hidden></p>
     </section>
 
@@ -67,7 +61,7 @@
       <div class="buildings" id="buildings"></div>
       <div class="mystery" id="mystery" hidden>
         <span class="mystery-icon" aria-hidden="true">?</span>
-        <span><strong>Bâtiment mystère</strong><span id="mystery-text"></span></span>
+        <span class="item-text"><span class="item-name">Bâtiment mystère</span><span class="item-info" id="mystery-text"></span></span>
       </div>
       <button class="reset" id="reset" type="button">Recommencer la partie</button>
     </section>
@@ -75,6 +69,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="art.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

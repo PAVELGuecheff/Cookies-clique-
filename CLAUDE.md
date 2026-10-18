@@ -7,12 +7,17 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
 ## Fichiers
 - `index.html` : structure de la page, aucun CSS ni JS dedans.
 - `style.css` : apparence ; couleurs en variables dans `:root`.
+- `art.js` : tous les dessins en pixel art (grilles de lettres + palette `PALETTE`), l’île dessinée
+  pixel par pixel (`drawIsland`) et les emplacements des bâtiments. Expose `window.PixelArt`.
 - `game.js` : toute la logique, dans une seule fonction `(function(){ "use strict"; … })();`.
   Les données d’équilibrage sont en haut : `BUILDINGS`, `UPGRADES` (+ `BUILDING_UPGRADES`), `STAGES`,
   et les réglages des événements (`BOTTLE`, `BOAT`, `FRENZY`, `GOLD_CLICK`).
 
 ## Technique
-- HTML/CSS/JS sans framework ni npm. Dessins = emojis.
+- HTML/CSS/JS sans framework ni npm.
+- Direction artistique : pixel art, une seule palette (celle d’`art.js`), police « Jersey 10 », contours
+  pixel (`--outline` dans `style.css`), aplats sans dégradé doux. **Pas d’emoji** dans l’interface :
+  utiliser `icon("nom")` (game.js) et ajouter le dessin dans `art.js` si besoin.
 - Sauvegarde dans `localStorage` (clé `cookies-clique-save`) toutes les 10 s et quand on quitte la page ;
   gains hors ligne plafonnés à 8 h. Si on change la forme de `state`, garder la compatibilité avec
   les anciennes sauvegardes (`load()` complète avec `newState()`).

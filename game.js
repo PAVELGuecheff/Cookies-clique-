@@ -7,13 +7,13 @@
 
   // cost : prix de départ, cps : pièces par seconde, pop : habitants attirés
   const BUILDINGS = [
-    { id: "hutte",   emoji: "🛖", name: "Hutte de palmes",    cost: 15,       cps: 0.1,  pop: 1 },
-    { id: "pecheur", emoji: "🎣", name: "Cabane de pêcheur",  cost: 100,      cps: 1,    pop: 2 },
-    { id: "cocos",   emoji: "🌴", name: "Cocoteraie",         cost: 1100,     cps: 8,    pop: 5 },
-    { id: "port",    emoji: "⚓", name: "Petit port",         cost: 12000,    cps: 47,   pop: 15 },
-    { id: "marche",  emoji: "🏪", name: "Marché",             cost: 130000,   cps: 260,  pop: 40 },
-    { id: "hotel",   emoji: "🏨", name: "Hôtel de plage",     cost: 1400000,  cps: 1400, pop: 120 },
-    { id: "aero",    emoji: "✈️", name: "Aéroport",           cost: 20000000, cps: 7800, pop: 400 },
+    { id: "hutte",   name: "Hutte de palmes",    cost: 15,       cps: 0.1,  pop: 1 },
+    { id: "pecheur", name: "Cabane de pêcheur",  cost: 100,      cps: 1,    pop: 2 },
+    { id: "cocos",   name: "Cocoteraie",         cost: 1100,     cps: 8,    pop: 5 },
+    { id: "port",    name: "Petit port",         cost: 12000,    cps: 47,   pop: 15 },
+    { id: "marche",  name: "Marché",             cost: 130000,   cps: 260,  pop: 40 },
+    { id: "hotel",   name: "Hôtel de plage",     cost: 1400000,  cps: 1400, pop: 120 },
+    { id: "aero",    name: "Aéroport",           cost: 20000000, cps: 7800, pop: 400 },
   ];
   const PRICE_GROWTH = 1.15; // +15 % à chaque achat
 
@@ -22,29 +22,29 @@
   // effect : click (clic ×), clickFromProd (part de la production ajoutée au clic),
   // building (production de ce bâtiment ×2), auto (achat automatique), popBonus (bonus par habitant).
   const UPGRADES = [
-    { id: "machette",  emoji: "🪓", name: "Machette",  info: "Clic ×2", cost: 100, unlock: { earned: 50 }, effect: { click: 2 } },
-    { id: "pirogue",   emoji: "🛶", name: "Pirogue",   info: "Clic ×2", cost: 1000, unlock: { earned: 500 }, effect: { click: 2 } },
-    { id: "intendant", emoji: "🧑‍💼", name: "Intendant", info: "Débloque l’achat automatique 🤖", cost: 5000, unlock: { earned: 2000 }, effect: { auto: true } },
-    { id: "mairie",    emoji: "🏛️", name: "Mairie",    info: "+1 % de production par 10 habitants", cost: 25000, unlock: { pop: 100 }, effect: { popBonus: 0.001 } },
-    { id: "boussole",  emoji: "🧭", name: "Boussole",  info: "+1 % de la prod. par clic", cost: 50000, unlock: { earned: 20000 }, effect: { clickFromProd: 0.01 } },
+    { id: "machette",  icon: "machette", name: "Machette",  info: "Clic ×2", cost: 100, unlock: { earned: 50 }, effect: { click: 2 } },
+    { id: "pirogue",   icon: "pirogue", name: "Pirogue",   info: "Clic ×2", cost: 1000, unlock: { earned: 500 }, effect: { click: 2 } },
+    { id: "intendant", icon: "intendant", name: "Intendant", info: "Débloque l’achat automatique", cost: 5000, unlock: { earned: 2000 }, effect: { auto: true } },
+    { id: "mairie",    icon: "mairie", name: "Mairie",    info: "+1 % de production par 10 habitants", cost: 25000, unlock: { pop: 100 }, effect: { popBonus: 0.001 } },
+    { id: "boussole",  icon: "boussole", name: "Boussole",  info: "+1 % de la prod. par clic", cost: 50000, unlock: { earned: 20000 }, effect: { clickFromProd: 0.01 } },
   ];
 
   // Deux améliorations par bâtiment : sa production ×2 à 10 exemplaires, puis encore ×2 à 25.
   const BUILDING_UPGRADES = {
-    hutte:   [["🌿", "Toits tressés"], ["🛏️", "Hamacs"]],
-    pecheur: [["🕸️", "Filets renforcés"], ["🚤", "Chalutier"]],
-    cocos:   [["🪸", "Engrais de corail"], ["🥥", "Presse à coco"]],
-    port:    [["🏗️", "Grue"], ["🗼", "Phare"]],
-    marche:  [["⛱️", "Étals couverts"], ["🎪", "Grande foire"]],
-    hotel:   [["🏊", "Piscine"], ["💆", "Spa"]],
-    aero:    [["🛫", "Piste longue"], ["🧳", "Vols charters"]],
+    hutte:   ["Toits tressés", "Hamacs"],
+    pecheur: ["Filets renforcés", "Chalutier"],
+    cocos:   ["Engrais de corail", "Presse à coco"],
+    port:    ["Grue", "Phare"],
+    marche:  ["Étals couverts", "Grande foire"],
+    hotel:   ["Piscine", "Spa"],
+    aero:    ["Piste longue", "Vols charters"],
   };
   const BUILDING_UPGRADE_STEPS = [{ owned: 10, costMult: 20 }, { owned: 25, costMult: 200 }];
   BUILDINGS.forEach((b) => {
-    BUILDING_UPGRADES[b.id].forEach(([emoji, name], tier) => {
+    BUILDING_UPGRADES[b.id].forEach((name, tier) => {
       const step = BUILDING_UPGRADE_STEPS[tier];
       UPGRADES.push({
-        id: `${b.id}-${tier + 1}`, emoji, name, info: `${b.emoji} production ×2`,
+        id: `${b.id}-${tier + 1}`, icon: b.id, badge: "×2", name, info: `${b.name} : production ×2`,
         cost: b.cost * step.costMult, unlock: { building: b.id, owned: step.owned }, effect: { building: b.id },
       });
     });
@@ -54,12 +54,12 @@
   const MAX_UPGRADES_SHOWN = 6;
 
   const STAGES = [
-    { pop: 0,      emoji: "🏝️", title: "Îlot désert" },
-    { pop: 10,     emoji: "⛺", title: "Campement" },
-    { pop: 100,    emoji: "🏘️", title: "Village" },
-    { pop: 1000,   emoji: "🏡", title: "Bourg" },
-    { pop: 10000,  emoji: "🏙️", title: "Ville" },
-    { pop: 100000, emoji: "🗽", title: "Île-nation" },
+    { pop: 0,      landmark: "cocos", title: "Îlot désert" },
+    { pop: 10,     landmark: "tente", title: "Campement" },
+    { pop: 100,    landmark: "puits", title: "Village" },
+    { pop: 1000,   landmark: "clocher", title: "Bourg" },
+    { pop: 10000,  landmark: "phare", title: "Ville" },
+    { pop: 100000, landmark: "palais", title: "Île-nation" },
   ];
 
   const SAVE_KEY = "cookies-clique-save";
@@ -163,6 +163,11 @@
   // ---------------------------------------------------------------------------
 
   const $ = (id) => document.getElementById(id);
+  const art = window.PixelArt; // les dessins (art.js)
+  const icon = (name, look, className) =>
+    `<img class="${className || "px"}" src="${art.url(name, look)}" alt="" draggable="false">`;
+  const COIN = icon("piece", undefined, "px coin-icon");
+  const PEOPLE = icon("habitant", 1, "px people-icon");
   const intFmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
   const decFmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
   const BIG = [[1e12, "Bn"], [1e9, "Md"], [1e6, "M"]];
@@ -180,27 +185,29 @@
     $("buildings").innerHTML = BUILDINGS.map((b) => `
       <div class="row" data-row="${b.id}" hidden>
         <button class="item" type="button" data-building="${b.id}">
-          <span class="item-emoji">${b.emoji}</span>
-          <span>
-            <span class="item-name">${b.name}</span><br>
-            <span class="item-info"></span><br>
-            <span class="item-price"></span>
+          <span class="item-icon">${icon(b.id)}</span>
+          <span class="item-text">
+            <span class="item-name">${b.name}</span>
+            <span class="item-info">+<span class="cps"></span> ${COIN}/s · +${b.pop} ${PEOPLE}</span>
+            <span class="item-price"><span class="cost"></span> ${COIN}<span class="qty"></span></span>
           </span>
           <span class="item-count"></span>
         </button>
         <button class="auto-toggle" type="button" data-auto="${b.id}" aria-pressed="false" hidden
-          aria-label="Achat automatique : ${b.name}"><span>🤖</span>Auto</button>
+          aria-label="Achat automatique : ${b.name}">${icon("engrenage")}<span>Auto</span></button>
       </div>`).join("");
 
     $("upgrades").innerHTML = UPGRADES.map((u) => `
       <button class="item upgrade" type="button" data-upgrade="${u.id}" hidden>
-        <span class="item-emoji">${u.emoji}</span>
-        <span>
-          <span class="item-name">${u.name}</span><br>
-          <span class="item-info">${u.info}</span><br>
-          <span class="item-price">${format(u.cost)} 🪙</span>
+        <span class="item-icon">${icon(u.icon)}${u.badge ? `<span class="badge">${u.badge}</span>` : ""}</span>
+        <span class="item-text">
+          <span class="item-name">${u.name}</span>
+          <span class="item-info">${u.info}</span>
+          <span class="item-price">${format(u.cost)} ${COIN}</span>
         </span>
       </button>`).join("");
+
+    $("mystery-text").innerHTML = `Gagnez encore <span id="mystery-amount"></span> ${COIN} pour le découvrir`;
   }
 
   function render() {
@@ -212,19 +219,18 @@
 
     const active = [];
     const now = performance.now();
-    if (now < buffs.prod.until) active.push(`🔥 Frénésie : production ×${FRENZY.mult} · ${Math.ceil((buffs.prod.until - now) / 1000)} s`);
-    if (now < buffs.click.until) active.push(`✨ Clic d’or : clic ×${GOLD_CLICK.mult} · ${Math.ceil((buffs.click.until - now) / 1000)} s`);
-    $("buffs").textContent = active.join("  ");
+    if (now < buffs.prod.until) active.push(`Frénésie : production ×${FRENZY.mult} · ${Math.ceil((buffs.prod.until - now) / 1000)} s`);
+    if (now < buffs.click.until) active.push(`Clic d’or : clic ×${GOLD_CLICK.mult} · ${Math.ceil((buffs.click.until - now) / 1000)} s`);
+    $("buffs").textContent = active.join(" · ");
     $("buffs").hidden = active.length === 0;
 
     const stage = STAGES[stageIndex()];
     const next = STAGES[stageIndex() + 1];
     $("stage-title").textContent = stage.title;
-    $("island-emoji").textContent = stage.emoji;
     const pop = population();
     $("stage-next").textContent = next
-      ? `${format(pop)} / ${format(next.pop)} habitants · prochain palier : ${next.title}`
-      : "Votre île est devenue une nation ! 🎉";
+      ? `${format(pop)} / ${format(next.pop)} habitants → ${next.title}`
+      : "Votre île est devenue une nation !";
     const progress = next ? (pop - stage.pop) / (next.pop - stage.pop) : 1;
     $("progress-fill").style.width = Math.min(100, progress * 100) + "%";
     renderScene();
@@ -238,8 +244,9 @@
       const qty = buyQty(b);
       const cost = priceFor(b, qty);
       el.disabled = state.coins < cost;
-      el.querySelector(".item-info").textContent = `+${format(buildingCps(b), true)} 🪙/s · +${b.pop} 👥`;
-      el.querySelector(".item-price").textContent = format(cost) + " 🪙" + (qty > 1 ? ` (×${qty})` : "");
+      el.querySelector(".cps").textContent = format(buildingCps(b), true);
+      el.querySelector(".cost").textContent = format(cost);
+      el.querySelector(".qty").textContent = qty > 1 ? ` ×${qty}` : "";
       el.querySelector(".item-count").textContent = count(b) || "";
 
       const toggle = document.querySelector(`[data-auto="${b.id}"]`);
@@ -250,14 +257,14 @@
     const nextLocked = BUILDINGS.find((b) => count(b) === 0 && state.totalEarned < b.cost / 2);
     $("mystery").hidden = !nextLocked;
     if (nextLocked) {
-      $("mystery-text").textContent = `Gagnez encore ${format(nextLocked.cost / 2 - state.totalEarned)} 🪙 pour le découvrir`;
+      $("mystery-amount").textContent = format(nextLocked.cost / 2 - state.totalEarned);
     }
     document.querySelectorAll("#buy-mode button").forEach((button) => {
       button.setAttribute("aria-pressed", String(button.dataset.qty === String(state.buyMode)));
     });
     const bonus = popBonus();
     $("pop-bonus").hidden = bonus === 0;
-    $("pop-bonus").textContent = `🏛️ Mairie : +${format(bonus * 100, true)} % de production grâce aux habitants`;
+    $("pop-bonus").textContent = `Mairie : +${format(bonus * 100, true)} % de production grâce aux habitants`;
 
     // On ne montre que les améliorations disponibles les moins chères, pour garder la boutique lisible.
     let shown = 0;
@@ -274,7 +281,7 @@
   let toastTimer;
   function toast(message) {
     const el = $("toast");
-    el.textContent = message;
+    el.innerHTML = message;
     el.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
@@ -283,7 +290,7 @@
   function floatText(x, y, text) {
     const el = document.createElement("span");
     el.className = "float";
-    el.textContent = text;
+    el.innerHTML = text;
     el.style.left = x + "px";
     el.style.top = y + "px";
     el.addEventListener("animationend", () => el.remove());
@@ -294,7 +301,7 @@
     const i = stageIndex();
     if (i > state.stage) {
       state.stage = i;
-      toast(`${STAGES[i].emoji} Votre île devient : ${STAGES[i].title} !`);
+      toast(`${icon(STAGES[i].landmark)} Votre île devient : ${STAGES[i].title} !`);
       confetti();
     }
   }
@@ -303,59 +310,77 @@
   // Le village dessiné sur l’île
   // ---------------------------------------------------------------------------
 
-  const VILLAGERS = ["🧍", "🧍‍♀️", "🧑", "👩", "👨", "🧒", "👵", "🧔", "👧", "👴"];
-  const MAX_SCENE_BUILDINGS = 18;
+  const ISLAND = art.ISLAND;
+  const SLOTS = art.buildingSlots();
+  const MAX_SCENE_BUILDINGS = Math.min(16, SLOTS.length);
+  const MAX_SCENE_VILLAGERS = 10;
 
-  // Place n°i sur l’île : une spirale autour du centre, pour que chaque objet garde sa place.
-  function spot(i) {
-    const angle = i * 2.39996; // angle d’or : les objets se répartissent sans se superposer
-    const radius = 22 + (i % 4) * 5;
-    return { x: 50 + radius * Math.cos(angle), y: 50 + radius * 0.85 * Math.sin(angle) };
+  // Taille de l’île : un nombre entier de pixels écran par pixel dessiné, pour des pixels bien nets.
+  function sizeIsland() {
+    const available = Math.min($("island-zone").clientWidth, 600);
+    const scale = Math.max(2, Math.floor(available / ISLAND.w));
+    const island = $("island");
+    island.style.width = ISLAND.w * scale + "px";
+    island.style.height = ISLAND.h * scale + "px";
+    island.style.setProperty("--s", scale);
   }
 
-  function sceneItem(className, emoji, place, extraStyle) {
-    return `<span class="${className}" style="left:${place.x}%;top:${place.y}%;${extraStyle || ""}">${emoji}</span>`;
+  // Un dessin posé sur l’île : (x, y) = position de ses pieds, en pixels de l’île.
+  function placeSprite(name, x, y, className, look, extraStyle) {
+    const size = art.size(name);
+    const left = Math.round(x - size.w / 2);
+    const top = Math.round(y - size.h);
+    return `<img class="${className}" src="${art.url(name, look)}" alt="" draggable="false" style="` +
+      `left:${(left / ISLAND.w) * 100}%;top:${(top / ISLAND.h) * 100}%;width:${(size.w / ISLAND.w) * 100}%;` +
+      `z-index:${Math.round(y)};${extraStyle || ""}">`;
   }
 
-  // Redessine seulement quand le nombre de bâtiments ou d’habitants change.
+  // Redessine seulement quand le palier, le nombre de bâtiments ou d’habitants change.
   let sceneKey = "";
   function renderScene() {
     const pop = population();
-    const villagers = Math.min(10, Math.round(Math.sqrt(pop) * 1.2));
-    const key = BUILDINGS.map(count).join(",") + "|" + villagers;
+    const villagers = Math.min(MAX_SCENE_VILLAGERS, Math.round(Math.sqrt(pop) * 1.2));
+    const key = stageIndex() + "|" + BUILDINGS.map(count).join(",") + "|" + villagers;
     if (key === sceneKey) return;
     sceneKey = key;
 
-    const html = [];
+    const html = [placeSprite(STAGES[stageIndex()].landmark, ISLAND.cx, ISLAND.cy + 9, "landmark")];
     let slot = 0;
     BUILDINGS.forEach((b) => {
       for (let n = 0; n < Math.min(count(b), 3) && slot < MAX_SCENE_BUILDINGS; n++) {
-        html.push(sceneItem("scene-building", b.emoji, spot(slot++)));
+        const place = SLOTS[slot++];
+        html.push(placeSprite(b.id, place.x, place.y, "scene-building"));
       }
     });
+    // Les habitants ont toujours la même place de départ, puis se promènent à leur rythme.
+    const rand = art.seeded(7);
     for (let i = 0; i < villagers; i++) {
-      // Chaque habitant se promène à son rythme (durée et sens différents).
-      const wander = `--dx:${(i % 2 ? 1 : -1) * (8 + (i % 3) * 6)}px;--dur:${3 + (i % 4)}s`;
-      html.push(sceneItem("villager", VILLAGERS[i % VILLAGERS.length], spot(MAX_SCENE_BUILDINGS + i * 3 + 1), wander));
+      let x, y;
+      do {
+        x = ISLAND.cx + (rand() - 0.5) * (ISLAND.rx * 1.6);
+        y = ISLAND.cy + (rand() - 0.5) * (ISLAND.ry * 1.4) + 4;
+      } while (!art.inEllipse(x, y - 4, ISLAND.cx, ISLAND.cy, ISLAND.rx - 8, ISLAND.ry - 6));
+      const walk = `--dx:${(i % 2 ? 1 : -1) * (4 + (i % 3) * 3)};--dur:${3 + (i % 4)}s`;
+      html.push(placeSprite("habitant", x, y, "villager", i, walk));
     }
     $("scene").innerHTML = html.join("");
   }
 
-  // Les nouveaux arrivants débarquent par le bas de l’île puis rejoignent le village.
+  // Les nouveaux arrivants débarquent par la plage du bas puis montent vers le village.
   function welcome(newcomers) {
-    const scene = $("arrivals"); // calque à part : le village peut se redessiner sans les effacer
+    const layer = $("arrivals"); // calque à part : le village peut se redessiner sans les effacer
+    const html = [];
     for (let i = 0; i < Math.min(newcomers, 5); i++) {
-      const el = document.createElement("span");
-      el.className = "newcomer";
-      el.textContent = VILLAGERS[Math.floor(Math.random() * VILLAGERS.length)];
-      el.style.left = 40 + Math.random() * 20 + "%";
-      el.style.setProperty("--to-x", (Math.random() - 0.5) * 120 + "px");
-      el.style.animationDelay = i * 0.15 + "s";
-      el.addEventListener("animationend", () => el.remove());
-      scene.appendChild(el);
+      const x = ISLAND.cx + (Math.random() - 0.5) * 30;
+      html.push(placeSprite("habitant", x, ISLAND.h - 2, "newcomer", Math.floor(Math.random() * 8),
+        `animation-delay:${i * 0.15}s;--to-x:${Math.round((Math.random() - 0.5) * 16)}`));
     }
+    layer.insertAdjacentHTML("beforeend", html.join(""));
+    layer.querySelectorAll(".newcomer").forEach((el) => {
+      el.addEventListener("animationend", () => el.remove(), { once: true });
+    });
     const rect = $("island").getBoundingClientRect();
-    floatText(rect.left + rect.width / 2, rect.top + rect.height * 0.8, `+${newcomers} 👥 Bienvenue !`);
+    floatText(rect.left + rect.width / 2, rect.top + rect.height * 0.85, `+${newcomers} ${PEOPLE} Bienvenue !`);
 
     const counter = $("population");
     counter.classList.remove("bump");
@@ -363,18 +388,31 @@
     counter.classList.add("bump");
   }
 
+  // Confettis en pixels, aux couleurs de la palette.
   function confetti() {
-    const pieces = ["🎉", "🌺", "🐚", "⭐", "🥥", "🎊"];
-    for (let i = 0; i < 30; i++) {
+    const colors = ["y", "r", "t", "g", "o", "l", "w"].map((c) => art.PALETTE[c]);
+    for (let i = 0; i < 36; i++) {
       const el = document.createElement("span");
       el.className = "confetti";
-      el.textContent = pieces[i % pieces.length];
+      el.style.background = colors[i % colors.length];
       el.style.left = Math.random() * 100 + "%";
       el.style.animationDelay = Math.random() * 0.6 + "s";
       el.style.animationDuration = 2 + Math.random() * 1.5 + "s";
       el.addEventListener("animationend", () => el.remove());
       document.body.appendChild(el);
     }
+  }
+
+  // Le décor du fond : soleil ou lune, nuages et vagues dessinés en pixels.
+  function buildBackdrop() {
+    $("backdrop").innerHTML =
+      `<img class="sun" src="${art.url("soleil")}" alt=""><img class="moon" src="${art.url("lune")}" alt="">` +
+      [1, 2, 3].map((n) => `<img class="cloud c${n}" src="${art.url("nuage")}" alt="">`).join("") +
+      `<div class="stars"></div><div class="waves"></div>`;
+    document.documentElement.style.setProperty("--wave", `url(${art.url("vague")})`);
+    document.querySelectorAll("img[data-sprite]").forEach((img) => {
+      img.src = art.url(img.dataset.sprite, img.dataset.look === undefined ? undefined : Number(img.dataset.look));
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -391,7 +429,7 @@
     const rect = $("island").getBoundingClientRect();
     const x = event.clientX || rect.left + rect.width / 2;
     const y = event.clientY || rect.top + rect.height / 2;
-    floatText(x, y, "+" + format(value, true) + " 🪙");
+    floatText(x, y, "+" + format(value, true) + " " + COIN);
     coinBurst(x, y);
     render();
   }
@@ -402,7 +440,7 @@
     for (let i = 0; i < 3; i++) {
       const el = document.createElement("span");
       el.className = "coin";
-      el.textContent = "🪙";
+      el.innerHTML = COIN;
       const angle = Math.random() * Math.PI * 2;
       const distance = 40 + Math.random() * 40;
       el.style.left = x + "px";
@@ -468,14 +506,14 @@
       const id = button.dataset.auto;
       state.auto[id] = !state.auto[id];
       const b = BUILDINGS.find((x) => x.id === id);
-      toast(state.auto[id] ? `🤖 ${b.name} : achat automatique activé` : `${b.name} : achat automatique arrêté`);
+      toast(`${icon(id)} ${b.name} : achat automatique ${state.auto[id] ? "activé" : "arrêté"}`);
     }
 
     const upgrade = UPGRADES.find((u) => u.id === button.dataset.upgrade);
     if (upgrade && !state.upgrades[upgrade.id] && state.coins >= upgrade.cost) {
       state.coins -= upgrade.cost;
       state.upgrades[upgrade.id] = true;
-      toast(`${upgrade.emoji} ${upgrade.name} achetée : ${upgrade.info}`);
+      toast(`${icon(upgrade.icon)} ${upgrade.name} achetée : ${upgrade.info}`);
     }
     render();
   }
@@ -494,7 +532,7 @@
     state = newState();
     save();
     render();
-    toast("🏝️ Nouvelle partie : retour sur l’îlot désert");
+    toast("Nouvelle partie : retour sur l’îlot désert");
   }
   function cancelReset() {
     clearTimeout(resetTimer);
@@ -525,7 +563,7 @@
     const el = document.createElement("button");
     el.type = "button";
     el.className = "bottle";
-    el.textContent = "🍾";
+    el.innerHTML = icon("bouteille");
     el.setAttribute("aria-label", "Bouteille à la mer : touchez-la vite !");
     el.style.left = randomBetween(8, 82) + "%";
     el.style.top = randomBetween(25, 75) + "%";
@@ -546,16 +584,16 @@
     if (roll < 0.5) {
       const gain = Math.max(clickValue() * 30, Math.min(state.coins * 0.15, perSecond() * 900));
       earn(gain);
-      rewardAt(el, "+" + format(gain) + " 🪙");
-      toast(`🍾 Un trésor dans la bouteille : +${format(gain)} 🪙`);
+      rewardAt(el, "+" + format(gain) + " " + COIN);
+      toast(`${icon("bouteille")} Un trésor dans la bouteille : +${format(gain)} ${COIN}`);
     } else if (roll < 0.8) {
       buffs.prod = { mult: FRENZY.mult, until: performance.now() + FRENZY.seconds * 1000 };
-      rewardAt(el, "🔥 ×" + FRENZY.mult);
-      toast(`🔥 Frénésie ! Production ×${FRENZY.mult} pendant ${FRENZY.seconds} s`);
+      rewardAt(el, "Frénésie ×" + FRENZY.mult);
+      toast(`${icon("bouteille")} Frénésie ! Production ×${FRENZY.mult} pendant ${FRENZY.seconds} s`);
     } else {
       buffs.click = { mult: GOLD_CLICK.mult, until: performance.now() + GOLD_CLICK.seconds * 1000 };
-      rewardAt(el, "✨ ×" + GOLD_CLICK.mult);
-      toast(`✨ Clic d’or ! Chaque clic ×${GOLD_CLICK.mult} pendant ${GOLD_CLICK.seconds} s`);
+      rewardAt(el, "Clic d’or ×" + GOLD_CLICK.mult);
+      toast(`${icon("bouteille")} Clic d’or ! Chaque clic ×${GOLD_CLICK.mult} pendant ${GOLD_CLICK.seconds} s`);
     }
     render();
   }
@@ -565,7 +603,7 @@
     const el = document.createElement("button");
     el.type = "button";
     el.className = "boat";
-    el.textContent = "⛵";
+    el.innerHTML = icon("bateau");
     el.setAttribute("aria-label", "Bateau de touristes : touchez-le pour les accueillir");
     el.style.top = randomBetween(18, 60) + "%";
     el.addEventListener("animationend", () => {
@@ -576,8 +614,8 @@
       boatOnScreen = false;
       const gain = Math.max(50, perSecond() * 120 + clickValue() * 25);
       earn(gain);
-      rewardAt(el, "+" + format(gain) + " 🪙");
-      toast(`⛵ Des touristes débarquent et dépensent +${format(gain)} 🪙`);
+      rewardAt(el, "+" + format(gain) + " " + COIN);
+      toast(`${icon("bateau")} Des touristes débarquent et dépensent +${format(gain)} ${COIN}`);
       render();
     });
     document.body.appendChild(el);
@@ -623,7 +661,7 @@
     const gain = perSecond() * away;
     if (away > 60 && gain >= 1) {
       earn(gain);
-      toast(`Pendant votre absence : +${format(gain)} 🪙`);
+      toast(`Pendant votre absence : +${format(gain)} ${COIN}`);
     }
   }
 
@@ -631,6 +669,10 @@
   // 8. Démarrage et boucle de jeu
   // ---------------------------------------------------------------------------
 
+  buildBackdrop();
+  art.drawIsland($("island-canvas"));
+  sizeIsland();
+  window.addEventListener("resize", sizeIsland);
   buildShop();
   load();
   render();
