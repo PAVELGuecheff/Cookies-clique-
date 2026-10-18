@@ -26,6 +26,7 @@
     { id: "pirogue",   icon: "pirogue", name: "Pirogue",   info: "Clic ×2", cost: 1000, unlock: { earned: 500 }, effect: { click: 2 } },
     { id: "intendant", icon: "intendant", name: "Intendant", info: "Débloque l’achat automatique", cost: 5000, unlock: { earned: 2000 }, effect: { auto: true } },
     { id: "mairie",    icon: "mairie", name: "Mairie",    info: "+1 % de production par 10 habitants", cost: 25000, unlock: { pop: 100 }, effect: { popBonus: 0.001 } },
+    { id: "negociant", icon: "balance", name: "Négociant", info: "Vend au marché tout seul (commission 10 %)", cost: 500000, unlock: { earned: 200000 }, effect: { autoSell: true } },
     { id: "boussole",  icon: "boussole", name: "Boussole",  info: "+1 % de la prod. par clic", cost: 50000, unlock: { earned: 20000 }, effect: { clickFromProd: 0.01 } },
   ];
 
@@ -102,6 +103,9 @@
   const STORAGE = { base: 50, perBuilding: 25 };
   const MARKET = { changeEvery: 30, min: 0.4, max: 2.2 }; // les prix varient de ×0,4 à ×2,2
   const DEMAND_PER_HABITANT = 0.01; // +1 % de prix de vente par habitant (plus d’acheteurs)
+  // Vendeur automatique (amélioration « Négociant ») : il vend quand le prix atteint le seuil choisi,
+  // ou quand le stock est plein, et garde une commission.
+  const AUTO_SELL = { commission: 0.1, thresholds: [1, 1.2, 1.5, 1.8] };
 
   // Coffre : les pièces placées rapportent des intérêts, jusqu’à une heure de production.
   const BANK = { ratePerMinute: 0.01, capacityHours: 1, minCapacity: 1000 };
@@ -127,6 +131,8 @@
       res: { bois: 0, poisson: 0, noix: 0 },
       market: { bois: { f: 1, trend: 0 }, poisson: { f: 1, trend: 0 }, noix: { f: 1, trend: 0 } },
       bank: 0,
+      autoSell: { bois: { on: false, min: 1.2 }, poisson: { on: false, min: 1.2 }, noix: { on: false, min: 1.2 } },
+      autoSellTotal: 0,
       tabsSeen: { build: true },
     };
   }
@@ -215,6 +221,7 @@
   }
 
   const hasAutomation = () => ownedUpgrades().some((u) => u.effect.auto);
+  const hasAutoSell = () => ownedUpgrades().some((u) => u.effect.autoSell);
 
   function isUnlocked(u) {
     const need = u.unlock;
@@ -611,7 +618,7 @@
     if (upgrade && !state.upgrades[upgrade.id] && state.coins >= upgrade.cost) {
       state.coins -= upgrade.cost;
       state.upgrades[upgrade.id] = true;
-      toast(`${icon(upgrade.icon)} ${upgrade.name} achetée : ${upgrade.info}`);
+      toast(`${icon(upgrade.icon)} Amélioration achetée : ${upgrade.name} (${upgrade.info})`);
     }
     render();
   }
@@ -774,6 +781,10 @@
           <span class="item-price"><span class="unit"></span> ${COIN} l’unité</span>
         </span>
         <button type="button" class="sell" data-sell="${r.id}">Vendre<span class="sell-total"></span></button>
+        <span class="auto-sell" hidden>
+          <button type="button" class="auto-sell-toggle" data-auto-sell="${r.id}" aria-pressed="false">${icon("balance")}<span>Vente auto</span></button>
+          <button type="button" class="auto-sell-min" data-auto-min="${r.id}" aria-label="Changer le prix minimum de vente"></button>
+        </span>
       </div>`).join("");
   }
 
@@ -834,10 +845,17 @@
         trendEl.innerHTML = (m.trend ? icon(m.trend > 0 ? "hausse" : "baisse", undefined, "px trend-icon") : "") +
           ` prix ×${format(m.f, true)}`;
       }
-      const sellAll = Math.floor(stock);
-      row.querySelector(".sell-total").textContent = sellAll >= 1 ? ` +${format(sellAll * sellPrice(r))}` : "";
-      row.querySelector(".sell").disabled = sellAll < 1;
+      const whole = Math.floor(stock);
+      row.querySelector(".sell-total").textContent = whole >= 1 ? ` +${format(whole * sellPrice(r))}` : "";
+      row.querySelector(".sell").disabled = whole < 1;
+
+      const auto = state.autoSell[r.id];
+      row.querySelector(".auto-sell").hidden = !hasAutoSell();
+      row.querySelector(".auto-sell-toggle").setAttribute("aria-pressed", String(auto.on));
+      row.querySelector(".auto-sell-min").textContent = `si prix ≥ ×${format(auto.min, true)}`;
     });
+    $("auto-sell-note").hidden = !hasAutoSell();
+    $("auto-sell-total").textContent = format(state.autoSellTotal);
     $("market-timer").textContent = Math.max(0, Math.ceil((nextMarketAt - performance.now()) / 1000)) + " s";
   }
 
@@ -884,18 +902,52 @@
     render();
   }
 
-  function onSellClick(event) {
-    const button = event.target.closest("[data-sell]");
-    if (!button || button.disabled) return;
-    const r = RESOURCES.find((x) => x.id === button.dataset.sell);
+  // Vend tout le stock entier d’une ressource ; rate = part du prix gardée (1 = tout).
+  function sellAll(r, rate) {
     const qty = Math.floor(state.res[r.id]);
-    if (qty < 1) return;
-    const gain = qty * sellPrice(r);
+    if (qty < 1) return 0;
+    const gain = qty * sellPrice(r) * rate;
     state.res[r.id] -= qty;
     earn(gain);
+    return gain;
+  }
+
+  function onSellClick(event) {
+    const auto = event.target.closest("[data-auto-sell]");
+    if (auto) {
+      const setting = state.autoSell[auto.dataset.autoSell];
+      setting.on = !setting.on;
+      render();
+      return;
+    }
+    const min = event.target.closest("[data-auto-min]");
+    if (min) {
+      // Chaque appui passe au seuil suivant : ×1 → ×1,2 → ×1,5 → ×1,8 → ×1…
+      const setting = state.autoSell[min.dataset.autoMin];
+      const list = AUTO_SELL.thresholds;
+      setting.min = list[(list.indexOf(setting.min) + 1) % list.length];
+      render();
+      return;
+    }
+    const button = event.target.closest("[data-sell]");
+    if (!button || button.disabled) return;
+    const gain = sellAll(RESOURCES.find((x) => x.id === button.dataset.sell), 1);
+    if (!gain) return;
     const rect = button.getBoundingClientRect();
     floatText(rect.left + rect.width / 2, rect.top, `+${format(gain)} ${COIN}`);
     render();
+  }
+
+  // Le négociant passe une fois par seconde : il vend si le prix est assez haut ou si le stock déborde.
+  function autoSell() {
+    if (!hasAutoSell()) return;
+    RESOURCES.forEach((r) => {
+      const setting = state.autoSell[r.id];
+      if (!setting.on) return;
+      const goodPrice = state.market[r.id].f >= setting.min - 0.001;
+      const full = state.res[r.id] >= storage(r);
+      if (goodPrice || full) state.autoSellTotal += sellAll(r, 1 - AUTO_SELL.commission);
+    });
   }
 
   function onBankClick(event) {
@@ -974,6 +1026,7 @@
   $("bank-actions").addEventListener("click", onBankClick);
   setInterval(save, SAVE_EVERY_MS);
   setInterval(autoBuy, 1000);
+  setInterval(autoSell, 1000);
   updateDayNight();
   setInterval(updateDayNight, 60000);
 

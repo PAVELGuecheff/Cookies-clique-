@@ -672,3 +672,26 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 /* Carte métier : les boutons − / + passent sous le texte pour laisser de la place */
 .job { grid-template-columns: 48px minmax(0, 1fr); }
 .job .stepper { grid-column: 2; }
+
+/* Vendeur automatique (Négociant) dans les cartes du marché */
+.auto-sell { grid-column: 1 / -1; display: flex; gap: 12px; margin-top: 4px; }
+.auto-sell button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 5px 8px 3px;
+  border: none;
+  background: var(--paper);
+  box-shadow: var(--outline), 0 4px var(--ink);
+  color: var(--muted);
+  font-size: .95rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.auto-sell .px { width: 24px; opacity: .5; }
+.auto-sell-toggle[aria-pressed="true"] { background: var(--green); color: var(--white); }
+.auto-sell-toggle[aria-pressed="true"] .px { opacity: 1; animation: hop 1s steps(2) infinite; }
+.auto-sell-min { color: var(--ink); }
+.auto-sell button:active { transform: translateY(3px); box-shadow: var(--outline), 0 1px var(--ink); }
