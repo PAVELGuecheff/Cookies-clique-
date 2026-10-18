@@ -934,3 +934,49 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .wonder-part .coin-icon { height: 20px; justify-self: center; }
 .wonder-part .refuse { padding: 4px 10px; }
 .wonder-part .refuse:disabled { cursor: not-allowed; color: var(--muted); box-shadow: var(--outline); }
+
+/* Époque et capitalisation sous le titre */
+.era {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 3px 12px 1px;
+  background: var(--ink);
+  box-shadow: 0 -3px var(--gold), 0 3px var(--gold), -3px 0 var(--gold), 3px 0 var(--gold);
+  color: var(--cream);
+  font-size: 1rem;
+}
+.era strong { font-weight: 400; color: var(--gold); }
+.era .coin-icon { height: 14px; vertical-align: -1px; }
+.era .trend-icon { height: 10px; }
+
+/* Bourse */
+.news { display: flex; align-items: center; gap: 8px; background: #fff1c9; color: var(--ink); }
+.news .px { width: 14px; }
+.stock { grid-template-columns: 40px minmax(0, 1fr) auto; }
+.stock .item-icon .px { width: 36px; }
+.stock-chart { width: 90px; height: 30px; box-shadow: var(--outline); }
+.stock-change.up { color: var(--green-dark); }
+.stock-change.down { color: var(--coral); }
+.stock-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 10px; margin-top: 4px; }
+.stock-actions button { padding: 6px 4px 4px; font-size: .9rem; }
+.stock-actions button:disabled { cursor: not-allowed; background: #eadcbc; color: var(--muted); box-shadow: var(--outline); }
+
+/* Jeux de hasard */
+.slots, .double { grid-template-columns: 48px minmax(0, 1fr); }
+.slots .item-text { grid-column: 1 / -1; }
+.reels { grid-column: 1 / -1; display: flex; justify-content: center; gap: 12px; }
+.reel {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  background: var(--white);
+  box-shadow: var(--outline), inset 0 -6px #eadcbc;
+}
+.reel .px { width: 40px; }
+.slot-result { grid-column: 1 / -1; margin: 4px 0 0; text-align: center; font-size: 1.05rem; }
+.slot-result .coin-icon, .item-effect .coin-icon { height: 14px; }
+.double-coin { width: 40px; justify-self: center; }
+.double-coin.flip { animation: flip .6s steps(6); }
+@keyframes flip { 50% { transform: scaleX(0) translateY(-10px); } }
+.stock .stock-actions { grid-template-columns: repeat(4, 1fr); }

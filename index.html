@@ -33,6 +33,7 @@
   <main class="layout">
     <section class="island-zone" id="island-zone">
       <h1 id="stage-title">Îlot désert</h1>
+      <p class="era" id="era"></p>
       <div class="progress" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
       <p class="stage-next" id="stage-next"></p>
       <button class="island" id="island" type="button" aria-label="Toucher l’île pour gagner des pièces">
@@ -141,6 +142,43 @@
           <button type="button" data-bank="0.5">Déposer 50 %</button>
           <button type="button" data-bank="1">Tout déposer</button>
           <button type="button" data-bank="out" class="withdraw">Tout retirer</button>
+        </div>
+
+        <h2 class="wonders-title">Bourse</h2>
+        <p class="panel-intro">Achetez des actions quand le cours est bas, revendez quand il monte. Attention aux actualités !</p>
+        <p class="panel-note">Nouveaux cours dans <strong id="stock-timer"></strong> · Portefeuille : <strong id="portfolio">0</strong></p>
+        <p class="pop-bonus news"><img class="px" data-sprite="hausse" alt=""> <span id="stock-news"></span></p>
+        <div class="cards" id="stocks"></div>
+
+        <h2 class="wonders-title">Jeux de hasard</h2>
+        <p class="panel-intro">Pour les joueurs audacieux. Sur la durée, le casino gagne toujours un peu…</p>
+        <div class="cards" id="casino">
+          <div class="card slots">
+            <span class="item-text">
+              <span class="item-name">Machine à sous</span>
+              <span class="item-info">3 identiques : jusqu’à ×100 (trois étoiles). Une paire : mise remboursée.</span>
+            </span>
+            <div class="reels"><span class="reel"></span><span class="reel"></span><span class="reel"></span></div>
+            <p class="slot-result" id="slot-result">Choisissez votre mise.</p>
+            <span class="stock-actions">
+              <button type="button" class="refuse" data-slot="0">Miser <span class="bet"></span></button>
+              <button type="button" class="refuse" data-slot="1">Miser <span class="bet"></span></button>
+              <button type="button" class="sell" data-slot="2">Miser <span class="bet"></span></button>
+            </span>
+          </div>
+          <div class="card double">
+            <img class="px double-coin" id="double-coin" data-sprite="piece" alt="">
+            <span class="item-text">
+              <span class="item-name">Double ou rien</span>
+              <span class="item-info">Pile : vous doublez la mise. Face : vous la perdez.</span>
+              <span class="item-effect" id="double-result"></span>
+            </span>
+            <span class="stock-actions">
+              <button type="button" class="refuse" data-double="0">Miser <span class="bet"></span></button>
+              <button type="button" class="refuse" data-double="1">Miser <span class="bet"></span></button>
+              <button type="button" class="sell" data-double="2">Miser <span class="bet"></span></button>
+            </span>
+          </div>
         </div>
       </div>
 

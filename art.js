@@ -544,6 +544,46 @@
       "kGgGgGgGgGgGgGgk",
       "kkkkkkkkkkkkkkkk",
     ],
+    // Variantes de la hutte quand l’île change d’époque
+    maison: [
+      "................",
+      "......kkkk......",
+      "....kkRRRRkk....",
+      "..kkRRrrrrRRkk..",
+      ".kRRrrrrrrrrRRk.",
+      "kkkkkkkkkkkkkkkk",
+      ".kmmmmmmmmmmmmk.",
+      ".kmkkkmmmmkkkmk.",
+      ".kmkekmmmmkekmk.",
+      ".kmkkkmmmmkkkmk.",
+      ".kmmmmmkkmmmmmk.",
+      ".kmMmmkBBkmmMmk.",
+      ".kmmmmkBBkmmmmk.",
+      ".kMmmmkBykmmmMk.",
+      ".kkkkkkkkkkkkkk.",
+      "................",
+    ],
+    immeuble: [
+      "..kkkkkkkkkkkk..",
+      "..kMMMMMMMMMMk..",
+      "..kmmmmmmmmmmk..",
+      "..kmeemeemeemk..",
+      "..kmEEmEEmEEmk..",
+      "..kmmmmmmmmmmk..",
+      "..kmeemeemeemk..",
+      "..kmEEmEEmEEmk..",
+      "..kmmmmmmmmmmk..",
+      "..kmeemeemeemk..",
+      "..kmEEmEEmEEmk..",
+      "..kmmmmmmmmmmk..",
+      "..kmeemeemeemk..",
+      "..kmEEmEEmEEmk..",
+      "..kmmmmmmmmmmk..",
+      "..kmmmkkkmmmmk..",
+      "..kmmmkBkmmmmk..",
+      "..kmmmkBkmmmmk..",
+      "..kkkkkkkkkkkk..",
+    ],
     hausse: [
       "...k...",
       "..kgk..",
@@ -716,7 +756,20 @@
   }
 
   // ---- L’île, dessinée pixel par pixel ----
-  const ISLAND = { w: 112, h: 80, cx: 56, cy: 38, rx: 50, ry: 28, side: 5 };
+  const ISLAND = { w: 112, h: 100, cx: 56, cy: 58, rx: 50, ry: 28, side: 5 };
+
+  // Les époques de l’île : chaque époque change les chemins, le décor et la ligne de tours.
+  // road : largeur et couleurs des routes ; towers : couleurs des tours au fond de l’île.
+  const ERAS = [
+    { name: "Âge des cabanes" },
+    { name: "Âge du bois",    road: { width: 2, colors: ["d", "S"] }, pier: "b" },
+    { name: "Âge de pierre",  road: { width: 3, colors: ["m", "M"] }, pier: "b", lamps: true,
+      towers: { body: "m", shade: "M", roof: "R", window: "k", lit: "y", min: 6, max: 12 } },
+    { name: "Âge industriel", road: { width: 4, colors: ["n", "n"], dash: "y" }, pier: "M", lamps: true,
+      towers: { body: "M", shade: "n", roof: "M", window: "e", lit: "y", min: 10, max: 26 } },
+    { name: "Âge du futur",   road: { width: 4, colors: ["n", "n"], dash: "t", edge: "t" }, pier: "m", lamps: true,
+      towers: { body: "e", shade: "E", roof: "i", window: "t", lit: "y", min: 14, max: 34, antenna: true } },
+  ];
 
   function seeded(seed) {
     return () => {
@@ -727,14 +780,46 @@
 
   const inEllipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
 
-  function drawIsland(canvas) {
+  // Dessine l’île selon son époque (era), le nombre de tours (towers) et la nuit (lumières aux fenêtres).
+  function drawIsland(canvas, options) {
+    const opts = options || {};
+    const era = ERAS[Math.min(opts.era || 0, ERAS.length - 1)];
     const { w, h, cx, cy, rx, ry, side } = ISLAND;
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     const rand = seeded(42);
     const px = (x, y, ch) => { ctx.fillStyle = PALETTE[ch]; ctx.fillRect(x, y, 1, 1); };
+    const rect = (x, y, rw, rh, ch) => { ctx.fillStyle = PALETTE[ch]; ctx.fillRect(x, y, rw, rh); };
+    const topEdge = (x) => cy - ry * Math.sqrt(Math.max(0, 1 - ((x - cx) / rx) ** 2));
 
+    // 1. Les tours, au fond : dessinées d’abord, la plage les cache à moitié.
+    if (era.towers && opts.towers > 0) {
+      const t = era.towers;
+      const towerRand = seeded(7);
+      const n = Math.min(14, opts.towers);
+      for (let i = 0; i < n; i++) {
+        // Réparties sur l’arrière de l’île, les plus hautes au milieu.
+        const slot = (i % 2 ? 1 : -1) * Math.ceil(i / 2);
+        const x = Math.round(cx + slot * 5 - 3);
+        const tw = 5 + Math.floor(towerRand() * 3);
+        const height = Math.round(t.min + (t.max - t.min) * (1 - Math.abs(slot) / 8) * (0.6 + towerRand() * 0.4));
+        const base = Math.round(topEdge(x + tw / 2)) + 6;
+        const top = base - height;
+        rect(x - 1, top - 1, tw + 2, height + 1, "k");
+        rect(x, top, tw, height, t.body);
+        rect(x + tw - 1, top, 1, height, t.shade);
+        rect(x, top, tw, 1, t.roof);
+        for (let wy = top + 2; wy < base - 1; wy += 3) {
+          for (let wx = x + 1; wx < x + tw - 1; wx += 2) {
+            px(wx, wy, opts.night && towerRand() < 0.7 ? t.lit : t.window);
+          }
+        }
+        if (t.antenna) { rect(x + Math.floor(tw / 2), top - 4, 1, 3, "k"); px(x + Math.floor(tw / 2), top - 5, opts.night ? "r" : "i"); }
+      }
+    }
+
+    // 2. L’île : plage, falaise, écume et eau peu profonde.
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const top = inEllipse(x + 0.5, y + 0.5, cx, cy, rx, ry);
@@ -746,11 +831,13 @@
         else if (top) px(x, y, rand() < 0.06 ? "S" : "s");
         else if (cliff) px(x, y, y > cy + ry + side - 2 ? "B" : rand() < 0.15 ? "b" : "d");
         else if (foam) { if ((x + y) % 3 !== 0) px(x, y, "w"); }
-        else if (shallow) px(x, y, "t");
+        else if (shallow && y > topEdge(x) - 4) px(x, y, "t");
       }
     }
-    // Touffes d’herbe et petits cailloux
-    [[24, 24, 9, 5], [86, 28, 7, 4], [40, 52, 6, 3], [74, 50, 8, 4]].forEach(([gx, gy, grx, gry]) => {
+
+    // 3. Herbe (moins d’herbe quand la ville grandit) et petits cailloux.
+    const patches = opts.era >= 3 ? [[24, 44, 6, 3], [86, 48, 5, 3]] : [[24, 44, 9, 5], [86, 48, 7, 4], [40, 72, 6, 3], [74, 70, 8, 4]];
+    patches.forEach(([gx, gy, grx, gry]) => {
       for (let y = gy - gry; y <= gy + gry; y++) {
         for (let x = gx - grx; x <= gx + grx; x++) {
           if (inEllipse(x + 0.5, y + 0.5, gx, gy, grx, gry) && inEllipse(x, y, cx, cy, rx - 4, ry - 4)) {
@@ -763,6 +850,47 @@
       const x = Math.round(cx + (rand() - 0.5) * rx * 1.6);
       const y = Math.round(cy + (rand() - 0.5) * ry * 1.6);
       if (inEllipse(x, y, cx, cy, rx - 4, ry - 4)) px(x, y, n % 3 ? "S" : "M");
+    }
+
+    // 4. Les routes : une grande rue et une avenue qui se croisent au centre.
+    if (era.road) {
+      const r = era.road;
+      const inside = (x, y) => inEllipse(x + 0.5, y + 0.5, cx, cy, rx - 3, ry - 3);
+      const streetY = cy + 12;
+      for (let x = 0; x < w; x++) {
+        for (let k = 0; k < r.width; k++) {
+          const y = streetY + k;
+          if (inside(x, y)) px(x, y, r.colors[(x + k) % 2]);
+        }
+        if (r.dash && x % 6 < 3 && inside(x, streetY + 1)) px(x, streetY + Math.floor(r.width / 2), r.dash);
+        if (r.edge && inside(x, streetY - 1)) { px(x, streetY - 1, r.edge); px(x, streetY + r.width, r.edge); }
+      }
+      for (let y = 0; y < h; y++) {
+        for (let k = 0; k < r.width; k++) {
+          const x = cx - Math.floor(r.width / 2) + k;
+          if (inside(x, y) && y > topEdge(x) + 4) px(x, y, r.colors[(y + k) % 2]);
+        }
+      }
+      // Lampadaires le long de la grande rue (allumés la nuit).
+      if (era.lamps) {
+        for (let x = cx - rx + 12; x < cx + rx - 10; x += 12) {
+          if (Math.abs(x - cx) < 4 || !inside(x, streetY - 4)) continue;
+          rect(x, streetY - 4, 1, 4, "k");
+          px(x, streetY - 5, opts.night ? "y" : "m");
+          if (opts.night) { px(x - 1, streetY - 5, "o"); px(x + 1, streetY - 5, "o"); }
+        }
+      }
+    }
+
+    // 5. Un quai qui avance dans l’eau, à droite de l’île.
+    if (era.pier) {
+      const py = cy + 4;
+      for (let x = cx + rx - 4; x < Math.min(w, cx + rx + 9); x++) {
+        rect(x, py, 1, 3, x % 2 ? era.pier : "B");
+        px(x, py + 3, "k");
+      }
+      rect(cx + rx + 2, py + 3, 1, 3, "B");
+      rect(cx + rx + 7, py + 3, 1, 3, "B");
     }
   }
 
@@ -785,5 +913,5 @@
   const canvasOf = (name, look) =>
     draw(SPRITES[name], look === undefined ? null : VILLAGER_LOOKS[look % VILLAGER_LOOKS.length]);
 
-  window.PixelArt = { PALETTE, SPRITES, VILLAGER_LOOKS, ISLAND, url, size, canvasOf, drawIsland, buildingSlots, inEllipse, seeded };
+  window.PixelArt = { PALETTE, SPRITES, VILLAGER_LOOKS, ISLAND, ERAS, url, size, canvasOf, drawIsland, buildingSlots, inEllipse, seeded };
 })();

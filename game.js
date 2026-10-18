@@ -119,6 +119,8 @@
     { id: "vip",        name: "Salon VIP",            desc: "Garder 3 habitants célèbres",           test: () => state.celebs.length >= CELEBS.slots },
     { id: "savant",     name: "Savant",               desc: "Découvrir 6 technologies",              test: () => Object.keys(state.techs).length >= 6 },
     { id: "merveille",  name: "Merveille du monde",   desc: "Construire une merveille",              test: () => WONDERS.some((w) => wonderBuilt(w)) },
+    { id: "trader",     name: "Loup de la Bourse",    desc: "Vendre des actions avec +50\u00a0% de bénéfice", test: () => (state.stats.bestTrade || 0) >= 0.5 },
+    { id: "jackpot",    name: "Jackpot",              desc: "Aligner trois étoiles",                 test: () => (state.stats.jackpots || 0) >= 1 },
     { id: "chance",     name: "Chanceux",             desc: "Tourner la roue 7 fois",                test: () => (state.stats.spins || 0) >= 7 },
   ];
 
@@ -184,12 +186,45 @@
   // Merveilles : d’énormes chantiers, construits l’un après l’autre, payés en ressources et en pièces.
   const WONDERS = [
     { id: "phare",  sprite: "phare",  name: "Phare géant",     info: "Production +25\u00a0% et bouteilles 2 fois plus fréquentes",
-      need: { bois: 3000, coins: 2e6 }, prod: 0.25, place: { x: 10, y: 44 } },
+      need: { bois: 3000, coins: 2e6 }, prod: 0.25, place: { x: 10, y: 64 } },
     { id: "totem",  sprite: "totem",  name: "Grand totem",     info: "Production +50\u00a0%",
-      need: { bois: 5000, noix: 5000, coins: 5e7 }, prod: 0.5, place: { x: 101, y: 44 } },
+      need: { bois: 5000, noix: 5000, coins: 5e7 }, prod: 0.5, place: { x: 101, y: 64 } },
     { id: "volcan", sprite: "volcan", name: "Volcan aménagé",  info: "Production ×2",
-      need: { bois: 20000, poisson: 20000, noix: 20000, coins: 5e9 }, prod: 1, place: { x: 56, y: 22 } },
+      need: { bois: 20000, poisson: 20000, noix: 20000, coins: 5e9 }, prod: 1, place: { x: 30, y: 46 } },
   ];
+
+  // Bourse : 4 compagnies dont le cours (un indice autour de 1) bouge toutes les 5 secondes.
+  // vol = nervosité du cours, drift = tendance à monter. Le prix d’une action = indice × unité ;
+  // l’unité suit la production de l’île, mais n’est réévaluée que quand on ne possède aucune action.
+  const STOCKS = { tick: 5, history: 40, unitSeconds: 20, minIndex: 0.2, maxIndex: 5, newsMin: 60, newsMax: 150 };
+  const COMPANIES = [
+    { id: "peche", name: "Pêcherie Royale",    icon: "poisson", vol: 0.04, drift: 0.002 },
+    { id: "coco",  name: "Cocotiers & Fils",   icon: "noix",    vol: 0.03, drift: 0.001 },
+    { id: "iles",  name: "Compagnie des Îles", icon: "bateau",  vol: 0.06, drift: 0.003 },
+    { id: "tour",  name: "Tropic Tourisme",    icon: "hotel",   vol: 0.08, drift: 0.002 },
+  ];
+  const NEWS = [
+    { up: true,  text: "Banc de thons géant au large !",        company: "peche" },
+    { up: false, text: "Marée noire près des côtes…",          company: "peche" },
+    { up: true,  text: "La noix de coco devient à la mode",     company: "coco" },
+    { up: false, text: "Des parasites dans les cocoteraies…",   company: "coco" },
+    { up: true,  text: "Nouvelle route maritime ouverte",       company: "iles" },
+    { up: false, text: "Tempête : la flotte reste au port…",    company: "iles" },
+    { up: true,  text: "Un influenceur célèbre visite l’île",   company: "tour" },
+    { up: false, text: "Saison des pluies : hôtels vides…",     company: "tour" },
+  ];
+
+  // Machine à sous : weight = chances de chaque symbole, triple = gain pour trois identiques (× la mise).
+  // Une paire rembourse la mise. Le casino garde environ 7 % des mises sur la durée.
+  const SLOT_SYMBOLS = [
+    { icon: "piece",     weight: 35, triple: 3 },
+    { icon: "poisson",   weight: 25, triple: 6 },
+    { icon: "noix",      weight: 20, triple: 10 },
+    { icon: "bouteille", weight: 12, triple: 25 },
+    { icon: "etoile",    weight: 8,  triple: 100 },
+  ];
+  const BETS = [0.01, 0.05, 0.1];          // part des pièces misée à la machine à sous
+  const DOUBLE = { chance: 0.48, bets: [0.1, 0.25, 0.5] }; // double ou rien
 
   // Niveaux de bâtiment : à partir de 10 exemplaires, on améliore tout un type (niveau 1 à 5).
   // Chaque niveau multiplie la production de ce type par 1,5. Prix = prix de départ × costMult.
@@ -237,7 +272,7 @@
     { id: "build",  name: "Construire" },
     { id: "jobs",   name: "Métiers", unlockText: "à 10 habitants", unlocked: () => population() >= 10 },
     { id: "market", name: "Marché",  unlockText: "avec une cabane de pêcheur", unlocked: () => (state.owned.pecheur || 0) > 0 },
-    { id: "bank",   name: "Coffre",  unlockText: "après 5 000 pièces gagnées", unlocked: () => state.totalEarned >= 5000 },
+    { id: "bank",   name: "Banque",  unlockText: "après 5 000 pièces gagnées", unlocked: () => state.totalEarned >= 5000 },
     { id: "projects", name: "Projets", unlockText: "à 100 habitants", unlocked: () => population() >= 100 },
     { id: "stats",  name: "Stats" },
   ];
@@ -252,6 +287,8 @@
     { id: "expeditions", name: "Routes commerciales",  icon: "boussole" },
     { id: "peche",      name: "Pêche à la ligne",      icon: "poisson_dore" },
     { id: "coffre",     name: "Intérêts du coffre",    icon: "coffre" },
+    { id: "bourse",     name: "Bourse (bénéfices)",    icon: "hausse" },
+    { id: "casino",     name: "Jeux de hasard (gains)", icon: "etoile" },
   ];
 
   // ---------------------------------------------------------------------------
@@ -283,6 +320,10 @@
       knowledge: 0,   // points de savoir
       techs: {},      // technologies découvertes
       wonders: {},    // apports à chaque merveille : { phare: { bois: 1200, coins: 5e5, built: false } }
+      stocks: {       // Bourse : indice, historique, actions possédées et prix payé par compagnie
+        unit: 0, idx: { peche: 1, coco: 1, iles: 1, tour: 1 }, hist: { peche: [], coco: [], iles: [], tour: [] },
+        shares: { peche: 0, coco: 0, iles: 0, tour: 0 }, paid: { peche: 0, coco: 0, iles: 0, tour: 0 }, news: "",
+      },
       order: null,  // commande en cours : { res, qty, reward, expiresAt }
       autoSellTotal: 0,
       autoMode: "cheap", // l’intendant achète le moins cher ("cheap") ou le plus rentable ("best")
@@ -461,6 +502,18 @@
     return true;
   }
 
+  // Époque de l’île : suit les paliers (village = âge du bois, bourg = pierre, ville = industriel, nation = futur).
+  const ERA_BY_STAGE = [0, 0, 1, 2, 3, 4];
+  const era = () => ERA_BY_STAGE[stageIndex()];
+
+  // Capitalisation : tout ce que vaut l’île (pièces, coffre, actions et bâtiments construits).
+  function capitalisation() {
+    const buildings = BUILDINGS.reduce((sum, b) => sum + b.cost * (Math.pow(PRICE_GROWTH, count(b)) - 1) / (PRICE_GROWTH - 1), 0);
+    return state.coins + state.bank + buildings + portfolioValue();
+  }
+  // Nombre de tours au fond de l’île : une de plus à chaque fois que la capitalisation est multipliée par 3 environ.
+  const towerCount = () => (era() < 2 ? 0 : Math.max(2, Math.min(14, Math.floor(Math.log10(Math.max(1, capitalisation())) * 2) - 8)));
+
   function stageIndex() {
     const pop = population();
     let i = 0;
@@ -488,9 +541,11 @@
   const intFmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
   const decFmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
   const dec2Fmt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
-  const BIG = [[1e12, "Bn"], [1e9, "Md"], [1e6, "M"]];
+  // M = million, Md = milliard, Bn = billion, Bd = billiard, Tn = trillion, Td = trilliard.
+  const BIG = [[1e21, "Td"], [1e18, "Tn"], [1e15, "Bd"], [1e12, "Bn"], [1e9, "Md"], [1e6, "M"]];
 
   function format(n, decimals) {
+    if (n >= 1e24) return n.toExponential(1).replace(".", ",").replace("e+", " × 10^"); // nombres géants
     for (const [size, unit] of BIG) {
       if (n >= size) return decFmt.format(Math.floor(n / size * 10) / 10) + " " + unit;
     }
@@ -561,6 +616,7 @@
     const stage = STAGES[stageIndex()];
     const next = STAGES[stageIndex() + 1];
     $("stage-title").textContent = stage.title;
+    renderCapital();
     const pop = population();
     $("stage-next").textContent = next
       ? `${format(pop)} / ${format(next.pop)} habitants → ${next.title}`
@@ -634,6 +690,25 @@
       button.setAttribute("aria-pressed", String(button.dataset.mode === state.autoMode));
     });
     renderPanels();
+  }
+
+  // Époque + capitalisation, avec une flèche qui compare à il y a 30 secondes.
+  let capitalHistory = [];
+  function renderCapital() {
+    const now = performance.now();
+    const value = capitalisation();
+    if (!capitalHistory.length || now - capitalHistory[capitalHistory.length - 1].t > 1000) {
+      capitalHistory.push({ t: now, value });
+      capitalHistory = capitalHistory.filter((p) => now - p.t <= 31000);
+    }
+    const old = capitalHistory[0].value;
+    const trend = value > old * 1.001 ? "hausse" : value < old * 0.999 ? "baisse" : "";
+    const html = `${art.ERAS[era()].name} · Capitalisation <strong>${format(value)}</strong> ${COIN}` +
+      (trend ? ` ${icon(trend, undefined, "px trend-icon")}` : "");
+    if ($("era").dataset.key !== html) {
+      $("era").dataset.key = html;
+      $("era").innerHTML = html;
+    }
   }
 
   // « Remboursé en 2 min 30 » sur chaque carte, et un badge sur l’achat le plus rentable.
@@ -741,9 +816,18 @@
 
   // Redessine seulement quand le palier, le nombre de bâtiments ou d’habitants change.
   let sceneKey = "";
+  let drawnIsland = "";
+  // La hutte se transforme avec les époques : maison de pierre, puis immeuble.
+  const buildingSprite = (b) => (b.id !== "hutte" ? b.id : era() >= 3 ? "immeuble" : era() >= 2 ? "maison" : "hutte");
   function renderScene() {
     const pop = population();
     const villagers = Math.min(MAX_SCENE_VILLAGERS, Math.round(Math.sqrt(pop) * 1.2));
+    const night = document.documentElement.classList.contains("night");
+    const islandKey = era() + "|" + towerCount() + "|" + night;
+    if (islandKey !== drawnIsland) {
+      drawnIsland = islandKey;
+      art.drawIsland($("island-canvas"), { era: era(), towers: towerCount(), night });
+    }
     const key = stageIndex() + "|" + BUILDINGS.map((b) => count(b) + ":" + level(b)).join(",") + "|" + villagers + "|" + state.celebs.join(",")
       + "|" + WONDERS.filter(wonderBuilt).length;
     if (key === sceneKey) return;
@@ -754,9 +838,10 @@
     BUILDINGS.forEach((b) => {
       for (let n = 0; n < Math.min(count(b), 3) && slot < MAX_SCENE_BUILDINGS; n++) {
         const place = SLOTS[slot++];
-        html.push(placeSprite(b.id, place.x, place.y, "scene-building"));
+        const sprite = buildingSprite(b);
+        html.push(placeSprite(sprite, place.x, place.y, "scene-building"));
         // Une étoile au-dessus des bâtiments de niveau 2 et plus.
-        if (level(b) >= 2) html.push(placeSprite("etoile", place.x, place.y - art.size(b.id).h + 1, "scene-star"));
+        if (level(b) >= 2) html.push(placeSprite("etoile", place.x, place.y - art.size(sprite).h + 1, "scene-star"));
       }
     });
     // Les habitants ont toujours la même place de départ, puis se promènent à leur rythme.
@@ -876,6 +961,7 @@
   function updateDayNight() {
     const hour = new Date().getHours();
     document.documentElement.classList.toggle("night", hour >= 20 || hour < 7);
+    sceneKey = ""; // l’île est redessinée : fenêtres et lampadaires allumés la nuit
   }
 
   function buy(b, qty) {
@@ -1096,6 +1182,7 @@
     checkOrder(now);
     checkExpedition();
     checkVisitor(now);
+    checkStocks(now);
   }
 
   // Un navire marchand passe commande de temps en temps (seulement quand le marché est ouvert).
@@ -1205,7 +1292,11 @@
     }
     document.querySelector('[data-tab="jobs"] .tab-dot').hidden = !state.visitor || activeTab === "jobs";
     if (activeTab === "market") renderMarket();
-    if (activeTab === "bank") renderBank();
+    if (activeTab === "bank") {
+      renderBank();
+      renderStocks();
+      renderCasino();
+    }
     if (activeTab === "stats") renderStats();
     if (activeTab === "projects") renderProjects();
   }
@@ -1252,6 +1343,7 @@
       ["Expéditions réussies", format(st.expeditions || 0)],
       ["Technologies", `${Object.keys(state.techs).length} / ${TECHS.length}`],
       ["Merveilles", `${WONDERS.filter(wonderBuilt).length} / ${WONDERS.length}`],
+      ["Meilleur gain au casino", format(st.bestWin || 0)],
     ];
     $("stats-records").innerHTML = records.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
     renderAchievements();
@@ -1931,6 +2023,227 @@
   }
 
   // ---------------------------------------------------------------------------
+  // 6 septies. Bourse et jeux de hasard (onglet Banque)
+  // ---------------------------------------------------------------------------
+
+  const stocks = () => state.stocks;
+  const ownsShares = () => COMPANIES.some((c) => stocks().shares[c.id] > 0);
+  // Unité de prix : réévaluée selon la production seulement quand on n’a aucune action (sinon les cours sautent).
+  function stockUnit() {
+    const fresh = Math.max(100, perSecond() * STOCKS.unitSeconds);
+    if (!stocks().unit || (!ownsShares() && fresh > stocks().unit)) stocks().unit = fresh;
+    return stocks().unit;
+  }
+  const sharePrice = (c) => stocks().idx[c.id] * stockUnit();
+  const portfolioValue = () => COMPANIES.reduce((sum, c) => sum + stocks().shares[c.id] * sharePrice(c), 0);
+
+  // Tirage « en cloche » (loi normale) pour des cours plus réalistes.
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+
+  let nextStockAt = performance.now() + STOCKS.tick * 1000;
+  let nextNewsAt = performance.now() + STOCKS.newsMin * 1000;
+  function checkStocks(now) {
+    if (now >= nextNewsAt) {
+      nextNewsAt = now + randomBetween(STOCKS.newsMin, STOCKS.newsMax) * 1000;
+      const news = NEWS[Math.floor(Math.random() * NEWS.length)];
+      const c = COMPANIES.find((x) => x.id === news.company);
+      const jump = news.up ? randomBetween(1.25, 1.6) : randomBetween(0.5, 0.78);
+      stocks().idx[c.id] = Math.min(STOCKS.maxIndex, Math.max(STOCKS.minIndex, stocks().idx[c.id] * jump));
+      stocks().news = `${news.text} ${c.name} ${news.up ? "+" : "−"}${Math.round(Math.abs(jump - 1) * 100)}\u00a0%`;
+      if (activeTab === "bank" || ownsShares()) toast(`${icon(news.up ? "hausse" : "baisse")} Bourse : ${stocks().news}`);
+    }
+    if (now < nextStockAt) return;
+    nextStockAt = now + STOCKS.tick * 1000;
+    COMPANIES.forEach((c) => {
+      let idx = stocks().idx[c.id];
+      idx *= Math.exp(c.drift - (c.vol * c.vol) / 2 + c.vol * gauss());
+      idx += (1 - idx) * 0.01; // le cours revient doucement vers 1
+      stocks().idx[c.id] = Math.min(STOCKS.maxIndex, Math.max(STOCKS.minIndex, idx));
+      const hist = stocks().hist[c.id];
+      hist.push(stocks().idx[c.id]);
+      if (hist.length > STOCKS.history) hist.shift();
+    });
+  }
+
+  function buildStocks() {
+    $("stocks").innerHTML = COMPANIES.map((c) => `
+      <div class="card stock" data-stock-row="${c.id}">
+        <span class="item-icon">${icon(c.icon)}</span>
+        <span class="item-text">
+          <span class="item-name">${c.name}</span>
+          <span class="item-info"><span class="stock-price"></span> ${COIN} · <span class="stock-change"></span></span>
+          <span class="item-info stock-owned"></span>
+        </span>
+        <canvas class="stock-chart" width="60" height="20"></canvas>
+        <span class="stock-actions">
+          <button type="button" class="refuse" data-stock="${c.id}" data-qty="1" aria-label="Acheter 1 action">+1</button>
+          <button type="button" class="refuse" data-stock="${c.id}" data-qty="10" aria-label="Acheter 10 actions">+10</button>
+          <button type="button" class="refuse" data-stock="${c.id}" data-qty="max" aria-label="Acheter le maximum">Max</button>
+          <button type="button" class="sell" data-stock="${c.id}" data-qty="sell" aria-label="Vendre toutes les actions">Vendre</button>
+        </span>
+      </div>`).join("");
+  }
+
+  // Petit graphique en pixels : une colonne par cours, verte si ça monte, rouge si ça descend.
+  function drawChart(canvas, hist) {
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = art.PALETTE.n;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (hist.length < 2) return;
+    const min = Math.min(...hist);
+    const max = Math.max(...hist);
+    const span = max - min || 1;
+    const step = canvas.width / STOCKS.history;
+    hist.forEach((v, i) => {
+      const y = Math.round((canvas.height - 2) * (1 - (v - min) / span)) + 1;
+      const up = i === 0 || v >= hist[i - 1];
+      ctx.fillStyle = art.PALETTE[up ? "g" : "r"];
+      ctx.fillRect(Math.floor(i * step), y, Math.ceil(step), canvas.height - y);
+      ctx.fillStyle = art.PALETTE.i;
+      ctx.fillRect(Math.floor(i * step), y, Math.ceil(step), 1);
+    });
+  }
+
+  let chartKey = "";
+  function renderStocks() {
+    $("stock-timer").textContent = Math.max(0, Math.ceil((nextStockAt - performance.now()) / 1000)) + " s";
+    $("stock-news").textContent = stocks().news || "Aucune nouvelle pour l’instant.";
+    $("portfolio").textContent = format(portfolioValue());
+    const redraw = chartKey !== String(stocks().hist.peche.length) + stocks().idx.peche;
+    chartKey = String(stocks().hist.peche.length) + stocks().idx.peche;
+    COMPANIES.forEach((c) => {
+      const row = document.querySelector(`[data-stock-row="${c.id}"]`);
+      const price = sharePrice(c);
+      const hist = stocks().hist[c.id];
+      const ref = hist.length > 10 ? hist[hist.length - 11] : hist[0] || stocks().idx[c.id];
+      const change = stocks().idx[c.id] / ref - 1;
+      row.querySelector(".stock-price").textContent = format(price, true);
+      const changeEl = row.querySelector(".stock-change");
+      changeEl.textContent = `${change >= 0 ? "+" : "−"}${format(Math.abs(change) * 100, true)}\u00a0% en 1 min`;
+      changeEl.className = "stock-change " + (change >= 0 ? "up" : "down");
+      const shares = stocks().shares[c.id];
+      const value = shares * price;
+      const profit = stocks().paid[c.id] ? value / stocks().paid[c.id] - 1 : 0;
+      row.querySelector(".stock-owned").textContent = shares
+        ? `${format(shares)} actions = ${format(value)} pièces (${profit >= 0 ? "+" : "−"}${format(Math.abs(profit) * 100, true)}\u00a0%)`
+        : "Aucune action";
+      row.querySelectorAll("[data-qty]").forEach((b) => {
+        const qty = b.dataset.qty;
+        b.disabled = qty === "sell" ? shares < 1 : state.coins < price * (qty === "max" ? 1 : Number(qty));
+      });
+      if (redraw) drawChart(row.querySelector(".stock-chart"), hist);
+    });
+  }
+
+  function onStockClick(event) {
+    const button = event.target.closest("[data-stock]");
+    if (!button || button.disabled) return;
+    const c = COMPANIES.find((x) => x.id === button.dataset.stock);
+    const price = sharePrice(c);
+    const s = stocks();
+    if (button.dataset.qty === "sell") {
+      const value = s.shares[c.id] * price;
+      const profit = value - s.paid[c.id];
+      state.coins += value;
+      // Seul le bénéfice compte comme pièces « gagnées ».
+      if (profit > 0) state.totalEarned += profit;
+      state.stats.sources.bourse = (state.stats.sources.bourse || 0) + profit;
+      state.stats.bestTrade = Math.max(state.stats.bestTrade || 0, s.paid[c.id] ? value / s.paid[c.id] - 1 : 0);
+      toast(`${icon(profit >= 0 ? "hausse" : "baisse")} Vente de ${c.name} : ${profit >= 0 ? "bénéfice" : "perte"} de ${format(Math.abs(profit))} ${COIN}`);
+      s.shares[c.id] = 0;
+      s.paid[c.id] = 0;
+    } else {
+      const qty = button.dataset.qty === "max" ? Math.floor(state.coins / price) : Number(button.dataset.qty);
+      if (qty < 1 || state.coins < qty * price) return;
+      state.coins -= qty * price;
+      s.shares[c.id] += qty;
+      s.paid[c.id] += qty * price;
+    }
+    render();
+  }
+
+  // ---- Jeux de hasard ----
+  let slotBet = 0;
+  let slotSpinning = false;
+  const pickSymbol = () => {
+    let roll = Math.random() * SLOT_SYMBOLS.reduce((sum, x) => sum + x.weight, 0);
+    return SLOT_SYMBOLS.find((x) => (roll -= x.weight) < 0);
+  };
+  const betAmount = (share) => Math.max(10, Math.floor(state.coins * share));
+
+  function casinoResult(net) {
+    state.stats.sources.casino = (state.stats.sources.casino || 0) + net;
+    if (net > 0) state.totalEarned += net;
+  }
+
+  function spinSlots(share) {
+    const bet = betAmount(share);
+    if (slotSpinning || state.coins < bet) return;
+    slotSpinning = true;
+    state.coins -= bet;
+    const result = [pickSymbol(), pickSymbol(), pickSymbol()];
+    const reels = [...document.querySelectorAll(".reel")];
+    $("slot-result").textContent = `Mise : ${format(bet)}…`;
+    // Chaque rouleau défile puis s’arrête l’un après l’autre.
+    reels.forEach((reel, i) => {
+      const spin = setInterval(() => { reel.innerHTML = icon(pickSymbol().icon); }, 80);
+      setTimeout(() => {
+        clearInterval(spin);
+        reel.innerHTML = icon(result[i].icon);
+        if (i === reels.length - 1) finishSlots(bet, result);
+      }, 600 + i * 350);
+    });
+  }
+
+  function finishSlots(bet, result) {
+    slotSpinning = false;
+    const [a, b, c] = result;
+    let gain = 0;
+    if (a === b && b === c) gain = bet * a.triple;
+    else if (a === b || b === c || a === c) gain = bet; // une paire : mise remboursée
+    state.coins += gain;
+    casinoResult(gain - bet);
+    if (a === b && b === c && a.icon === "etoile") state.stats.jackpots = (state.stats.jackpots || 0) + 1;
+    state.stats.bestWin = Math.max(state.stats.bestWin || 0, gain - bet);
+    $("slot-result").innerHTML = gain > bet ? `Gagné ! +${format(gain)} ${COIN}` : gain === bet ? "Une paire : mise remboursée" : `Perdu (−${format(bet)} ${COIN})`;
+    render();
+  }
+
+  function playDouble(share) {
+    const bet = betAmount(share);
+    if (state.coins < bet) return;
+    const win = Math.random() < DOUBLE.chance;
+    state.coins += win ? bet : -bet;
+    casinoResult(win ? bet : -bet);
+    const coin = $("double-coin");
+    coin.classList.remove("flip");
+    void coin.offsetWidth;
+    coin.classList.add("flip");
+    $("double-result").innerHTML = win ? `Pile ! Vous doublez : +${format(bet)} ${COIN}` : `Face… vous perdez ${format(bet)} ${COIN}`;
+    render();
+  }
+
+  function onCasinoClick(event) {
+    const slot = event.target.closest("[data-slot]");
+    if (slot && !slot.disabled) spinSlots(BETS[Number(slot.dataset.slot)]);
+    const dbl = event.target.closest("[data-double]");
+    if (dbl && !dbl.disabled) playDouble(DOUBLE.bets[Number(dbl.dataset.double)]);
+  }
+
+  function renderCasino() {
+    document.querySelectorAll("[data-slot]").forEach((b) => {
+      const bet = betAmount(BETS[Number(b.dataset.slot)]);
+      b.querySelector(".bet").textContent = format(bet);
+      b.disabled = slotSpinning || state.coins < bet;
+    });
+    document.querySelectorAll("[data-double]").forEach((b) => {
+      const bet = betAmount(DOUBLE.bets[Number(b.dataset.double)]);
+      b.querySelector(".bet").textContent = format(bet);
+      b.disabled = state.coins < bet;
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // 7. Sauvegarde
   // ---------------------------------------------------------------------------
 
@@ -1968,13 +2281,15 @@
   // ---------------------------------------------------------------------------
 
   buildBackdrop();
-  art.drawIsland($("island-canvas"));
+  art.drawIsland($("island-canvas"), {});
   sizeIsland();
   window.addEventListener("resize", sizeIsland);
   buildShop();
   buildPanels();
   buildAchievements();
   buildTechs();
+  buildStocks();
+  document.querySelectorAll(".reel").forEach((reel, i) => { reel.innerHTML = icon(SLOT_SYMBOLS[i].icon); });
   drawWheel();
   load();
   render();
@@ -1992,6 +2307,8 @@
   $("market").addEventListener("click", onSellClick);
   $("order").addEventListener("click", onOrderClick);
   $("bank-actions").addEventListener("click", onBankClick);
+  $("stocks").addEventListener("click", onStockClick);
+  $("casino").addEventListener("click", onCasinoClick);
   setInterval(save, SAVE_EVERY_MS);
   setInterval(autoBuy, 1000);
   setInterval(autoSell, 1000);

@@ -21,7 +21,10 @@ Projet pour apprendre et s’amuser. Le propriétaire est débutant en code : ex
 - Autres systèmes (réglages en haut de `game.js`) : série de bouteilles (`BOTTLE_STREAK`), roue du jour (`WHEEL`),
   succès (`ACHIEVEMENTS`, +1 % chacun), pêche à la ligne (`FISHING`), routes commerciales (`ROUTES`),
   niveaux de bâtiment (`LEVELS`), habitants célèbres (`CELEBS`, `CELEBRITIES`, effets lus par `celebEffect()`),
-  recherche (`TECHS`, `hasTech()`) et merveilles (`WONDERS`). Onglets : Construire, Métiers, Marché, Coffre, Projets, Stats.
+  recherche (`TECHS`, `hasTech()`), merveilles (`WONDERS`), Bourse (`STOCKS`, `COMPANIES`, `NEWS`) et jeux de hasard
+  (`SLOT_SYMBOLS`, `BETS`, `DOUBLE`). Onglets : Construire, Métiers, Marché, Banque (coffre, Bourse, casino), Projets, Stats.
+- Époques de l’île (`ERAS` dans art.js, `ERA_BY_STAGE` dans game.js) : routes, lampadaires, quai et tours au fond
+  (`drawIsland(canvas, { era, towers, night })`), le nombre de tours suit la `capitalisation()` de l’île.
 - `earn(montant, source)` : la source (`batiments`, `clics`, `marche`, `evenements`, `commandes`) alimente l’onglet Stats.
 
 ## Technique
